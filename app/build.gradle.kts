@@ -7,6 +7,8 @@ fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
 val keystore = env("KS_PATH")?.let { file(it) }?.takeIf { it.exists() }
 // pannello Kairos (lo stesso di KAIROS TV); la variabile KAIROS_SERVER_URL del repository, se c'è, lo sostituisce
 val serverUrl = (env("KAIROS_SERVER_URL") ?: "https://kairos-panel.mariopiccolo8562.workers.dev").trimEnd('/').replace("\"", "")
+// aggiornamenti: direttamente dalle release di questo repository (Kairos Lite è separata da KAIROS TV)
+val updateUrl = "https://github.com/" + (env("GITHUB_REPOSITORY") ?: "mariopiccolo8562-lang/kairos-lite") + "/releases/latest/download/kairos-lite.json"
 
 android {
     namespace = "com.kairos.lite"
@@ -22,6 +24,7 @@ android {
         versionName = env("VERSION_NAME") ?: "1.0.0"
         resValue("string", "app_name", env("LITE_APP_NAME") ?: "Kairos Lite")
         buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")
+        buildConfigField("String", "UPDATE_URL", "\"$updateUrl\"")
         // Fire TV / Android TV / telefoni sono ARM: niente x86, APK più piccolo
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }

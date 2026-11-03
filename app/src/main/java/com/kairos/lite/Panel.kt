@@ -246,11 +246,19 @@ object Panel {
         try { post("/api/player/errors", auth().put("items", items).put("ver", ver).put("model", model)) } catch (_: Exception) {}
     }
 
-    /** versione più recente di Kairos Lite (canale di aggiornamento separato da KAIROS TV) */
+    /**
+     * Versione più recente di Kairos Lite: kairos-lite.json dell'ultima release del repository kairos-lite
+     * (pubblicato dal workflow a ogni tag vX.Y.Z). Non dipende da KAIROS TV.
+     */
     fun update(): JSONObject? = try {
-        if (base.isEmpty()) null else {
-            val r = Http.text("$base/api/player/update?app=lite", connectMs = 12_000, readMs = 15_000)
-            if (r.code == 200) JSONObject(r.text) else null
+        val r = Http.text(BuildConfig.UPDATE_URL, connectMs = 12_000, readMs = 15_000)
+        if (r.code != 200) null else {
+            val j = JSONObject(r.text)
+            val v = j.optString("version").trim().removePrefix("v")
+            val m = Regex("^(\\d{1,3})\\.(\\d{1,2})\\.(\\d{1,2})$").find(v)
+            val code = m?.let { it.groupValues[1].toInt() * 10000 + it.groupValues[2].toInt() * 100 + it.groupValues[3].toInt() } ?: j.optInt("versionCode", 0)
+            val url = j.optString("url")
+            JSONObject().put("apk", if (code > 0 && url.startsWith("https://")) JSONObject().put("versionCode", code).put("version", v).put("url", url) else JSONObject.NULL)
         }
     } catch (_: Exception) { null }
 

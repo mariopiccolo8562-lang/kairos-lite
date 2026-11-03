@@ -31,7 +31,7 @@ Non ci sono, di proposito: multischermo, giochi, temi e add-on, assistente IA, r
 
 - Link fisso per **Downloader** e per lo store:
   `https://github.com/mariopiccolo8562-lang/kairos-lite/releases/latest/download/kairos-lite.apk`
-- Il pannello Kairos legge `kairos-lite.json` da solo: le app installate propongono l'aggiornamento all'avvio e ogni 3 ore.
+- Le app installate leggono `kairos-lite.json` dell'ultima release di **questo** repository e propongono l'aggiornamento all'avvio e ogni 3 ore. Kairos Lite è separata da KAIROS TV: del pannello Kairos usa solo i clienti (attivazione, playlist, profili…).
 
 Numerazione: correzioni sulla terza cifra (1.0.1, 1.0.2…), cambiamenti grossi sulla versione maggiore (2.0.0).
 
