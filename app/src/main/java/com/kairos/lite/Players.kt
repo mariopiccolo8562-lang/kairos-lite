@@ -28,7 +28,7 @@ import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 @OptIn(UnstableApi::class)
 object Players {
     /** [soft] = decodifica software (rimedio quando il decoder hardware si blocca) */
-    fun build(ctx: Context, live: Boolean, soft: Boolean = false): ExoPlayer {
+    fun build(ctx: Context, live: Boolean, soft: Boolean = false, preview: Boolean = false): ExoPlayer {
         val http = DefaultHttpDataSource.Factory()
             .setUserAgent(Http.UA)
             .setAllowCrossProtocolRedirects(true)
@@ -39,7 +39,14 @@ object Players {
         val sources = DefaultMediaSourceFactory(DefaultDataSource.Factory(ctx, http), extractors)
         val lite = App.lite
         // memoria per il video: tetto basso sulle chiavette da 1 GB, così il sistema non chiude l'app
-        val load = DefaultLoadControl.Builder()
+        // anteprima nella lista canali: pochi secondi di memoria, si guarda per qualche istante
+        val load = if (preview) DefaultLoadControl.Builder()
+            .setBufferDurationsMs(2_500, 8_000, 1_000, 2_000)
+            .setTargetBufferBytes(4 shl 20)
+            .setPrioritizeTimeOverSizeThresholds(false)
+            .setBackBuffer(0, false)
+            .build()
+        else DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 15_000,
                 if (live) (if (lite) 30_000 else 50_000) else (if (lite) 40_000 else 60_000),
@@ -61,6 +68,8 @@ object Players {
         val selector = DefaultTrackSelector(ctx)
         // niente qualità più alta dello schermo (una TV 720p non scarica il 1080p)
         selector.setParameters(selector.buildUponParameters().setViewportSizeToPhysicalDisplaySize(ctx, true).setPreferredAudioLanguage("it"))
+        // anteprima: nei canali HLS con più qualità si prende la più bassa adatta al riquadro
+        if (preview) selector.setParameters(selector.buildUponParameters().setMaxVideoSize(960, 540).setMaxVideoBitrate(3_000_000))
         val p = ExoPlayer.Builder(ctx, renderers)
             .setBandwidthMeter(meter)
             .setTrackSelector(selector)

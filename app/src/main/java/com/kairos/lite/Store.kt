@@ -50,6 +50,10 @@ object Store {
     var liteMode: String
         get() = s("liteMode", "auto")
         set(v) = put("liteMode", v)
+    /** anteprima video nella lista canali: auto (solo dispositivi non leggeri) | on | off */
+    var preview: String
+        get() = s("preview", "auto")
+        set(v) = put("preview", v)
     var plChoice: String
         get() = s("plChoice")
         set(v) = put("plChoice", v)

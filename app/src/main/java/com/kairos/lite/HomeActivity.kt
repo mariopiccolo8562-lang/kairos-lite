@@ -66,6 +66,14 @@ class HomeActivity : BaseActivity() {
         Sync.unlisten(syncL)
     }
 
+    /** INDIETRO sulla home: si chiede conferma prima di chiudere l'app */
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        Ui.dialog(this, "Vuoi uscire?", "Kairos Lite si chiude. Canali e preferiti restano pronti per la prossima volta.", "Esci", "Annulla") {
+            finishAffinity()
+        }
+    }
+
     override fun onStateChanged() {
         fillAccount()
         counts()

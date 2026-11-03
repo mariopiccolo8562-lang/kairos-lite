@@ -95,6 +95,8 @@ class SettingsActivity : BaseActivity() {
         }
         wasRunning = Sync.running
         syncSub = row(R.drawable.ic_refresh, "Aggiorna liste", syncText(), "") { Sync.force(); build() }
+        val prevVal = when (Store.preview) { "on" -> "Sempre"; "off" -> "Mai"; else -> if (App.lite) "Automatica (spenta)" else "Automatica (accesa)" }
+        row(R.drawable.ic_tv, "Anteprima video nella lista canali", "Il canale selezionato parte nel riquadro. Pesa sulle chiavette vecchie", prevVal) { choosePreview() }
         val liteVal = when (Store.liteMode) { "on" -> "Sempre"; "off" -> "Mai"; else -> "Automatica" }
         row(R.drawable.ic_bolt, "Modalità leggera", "Per chiavette e TV vecchie: niente animazioni né anteprima video", liteVal) { chooseLite() }
         row(R.drawable.ic_refresh, "Aggiornamenti dell'app", "Versione installata " + BuildConfig.VERSION_NAME, "") {
@@ -134,6 +136,15 @@ class SettingsActivity : BaseActivity() {
         Ui.choose(this, "Playlist", all.map { it.name }.toTypedArray(), all.indexOfFirst { it.id == cur }) { i ->
             Store.plChoice = all[i].id
             Sync.force()
+            build()
+        }
+    }
+
+    private fun choosePreview() {
+        val opts = arrayOf("Automatica (consigliata)", "Sempre attiva", "Mai")
+        val keys = arrayOf("auto", "on", "off")
+        Ui.choose(this, "Anteprima video", opts, keys.indexOf(Store.preview).coerceAtLeast(0)) { i ->
+            Store.preview = keys[i]
             build()
         }
     }

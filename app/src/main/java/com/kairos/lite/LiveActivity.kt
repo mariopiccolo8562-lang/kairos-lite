@@ -217,7 +217,7 @@ class LiveActivity : BaseActivity() {
         App.main.removeCallbacks(previewR)
         App.main.postDelayed(previewR, 180)
         App.main.removeCallbacks(videoR)
-        if (!App.lite && (Panel.state?.account?.maxStreams ?: 0) <= 0) App.main.postDelayed(videoR, 900)
+        if (previewOn()) App.main.postDelayed(videoR, if (App.lite) 1_300L else 900L)
     }
 
     private fun updatePreview() {
@@ -259,11 +259,20 @@ class LiveActivity : BaseActivity() {
     }
 
     /* ---------------- anteprima video (solo dispositivi non leggeri) ---------------- */
+    /**
+     * Anteprima video: automatica solo sui dispositivi non leggeri, oppure come scelta il cliente.
+     * Mai con un limite di visioni contemporanee (l'anteprima conterebbe come una visione).
+     */
+    private fun previewOn(): Boolean {
+        if ((Panel.state?.account?.maxStreams ?: 0) > 0) return false
+        return when (Store.preview) { "on" -> true; "off" -> false; else -> !App.lite }
+    }
+
     private fun startVideo() {
-        if (App.lite || isFinishing) return
+        if (!previewOn() || isFinishing) return
         val r = curRow ?: return
         val url = Play.liveUrls(r).firstOrNull() ?: return
-        val p = player ?: Players.build(this, true).also { pl ->
+        val p = player ?: Players.build(this, true, preview = true).also { pl ->
             player = pl
             val v = PlayerView(this)
             v.useController = false
