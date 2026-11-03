@@ -11,24 +11,29 @@ object Quality {
     private val PREFIX = Regex("^\\s*[a-z]{2,3}\\s*[:|]\\s*")
     private val TOKENS = Regex("\\b(4k|uhd|2160p?|fhd|full\\s?hd|1080[pi]?|hd|720p?|sd|576[pi]?|480p?|hevc|h\\.?265|x265|h\\.?264|x264|50fps|60fps|backup|bk|alt|raw|vip)\\b")
     private val HEVC = Regex("(?i)\\b(hevc|h\\.?265|x265)\\b")
-    private val NON = Regex("[^a-z0-9]+")
+    private val NON = Regex("[^\\p{L}\\p{N}]+")
+    private val R4K = Regex("\\b(4k|uhd|2160p?)\\b")
+    private val RFHD = Regex("\\b(fhd|full\\s?hd|1080[pi]?)\\b")
+    private val RSD = Regex("\\b(sd|576[pi]?|480p?)\\b")
 
     /** chiave comune alle versioni dello stesso canale ("" = nessuna) */
     fun key(name: String): String {
         var n = name.lowercase(Locale.ROOT)
+        // il prefisso del paese resta nella chiave: «IT: Eurosport 1» non ripiega su «UK: Eurosport 1»
+        val pre = PREFIX.find(n)?.value?.filter { it.isLetter() } ?: ""
         n = PREFIX.replace(n, "")
         n = TOKENS.replace(n, " ")
         n = NON.replace(n, "")
-        return if (n.length >= 2) n.take(60) else ""
+        return if (n.length >= 2) (if (pre.isNotEmpty()) "$pre|" else "") + n.take(60) else ""
     }
 
     /** 4 = 4K, 3 = FHD, 2 = HD (anche quando non è indicato), 1 = SD */
     fun rank(name: String): Int {
         val n = name.lowercase(Locale.ROOT)
         return when {
-            Regex("\\b(4k|uhd|2160p?)\\b").containsMatchIn(n) -> 4
-            Regex("\\b(fhd|full\\s?hd|1080[pi]?)\\b").containsMatchIn(n) -> 3
-            Regex("\\b(sd|576[pi]?|480p?)\\b").containsMatchIn(n) -> 1
+            R4K.containsMatchIn(n) -> 4
+            RFHD.containsMatchIn(n) -> 3
+            RSD.containsMatchIn(n) -> 1
             else -> 2
         }
     }

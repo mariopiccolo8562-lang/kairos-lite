@@ -37,7 +37,8 @@ class App : Application() {
             Glide.init(this, GlideBuilder()
                 .setMemoryCache(LruResourceCache(mem))
                 .setBitmapPool(LruBitmapPool(mem / 2))
-                .setDiskCache(InternalCacheDiskCacheFactory(this, "img", if (lite) 40L shl 20 else 120L shl 20))
+                // cartella predefinita di Glide: la cache della 1.0 (fino a 250 MB) viene ridotta, non lasciata lì
+                .setDiskCache(InternalCacheDiskCacheFactory(this, if (lite) 40L shl 20 else 120L shl 20))
                 .setDefaultRequestOptions(RequestOptions().format(if (lite) DecodeFormat.PREFER_RGB_565 else DecodeFormat.PREFER_ARGB_8888))
                 .setLogLevel(android.util.Log.ERROR))
         } catch (_: Throwable) {}

@@ -137,6 +137,14 @@ class PlayerActivity : BaseActivity() {
     private var lastRendered = -1
     private var lastPos = -1L
     private var frozen = 0
+    private var lastStallAt = 0L
+    private var lastFrameAt = 0L
+    private var lastKind = ""
+    private var lastStep = 0
+    private var resolvedAt = 0L
+    private var decoderProblem = false
+    private var gaveUp = false
+    private var seeking = false
 
     // qualità adattiva: versioni dello stesso canale (4K / FHD / HD / SD)
     private var baseRow: Db.Row? = null
@@ -254,7 +262,8 @@ class PlayerActivity : BaseActivity() {
             player?.let { p -> if (p.currentPosition > 0) startPos = p.currentPosition }
         }
         // problema in corso e il cliente è uscito
-        if (problem.isNotEmpty()) { event(problem, lastAction.ifEmpty { "nessuna" }, "chiuso", problemErr); problem = "" }
+        closeProblem()
+        sendEvents()
         releasePlayer()
         Pulse.stats = null
         Pulse.watch(null)
@@ -266,7 +275,7 @@ class PlayerActivity : BaseActivity() {
         App.main.removeCallbacks(tuneR)
         App.main.removeCallbacks(zapR)
         App.main.removeCallbacks(retryR)
-        if (events.length() > 0) { val e = events; bg { Panel.errors(e) } }
+        sendEvents()
     }
 
     private fun newPlayer() {
@@ -306,11 +315,12 @@ class PlayerActivity : BaseActivity() {
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             when (state) {
-                Player.STATE_BUFFERING -> { spin.visibility = View.VISIBLE; if (bufferingSince == 0L) bufferingSince = System.currentTimeMillis() }
+                Player.STATE_BUFFERING -> { spin.visibility = View.VISIBLE; if (bufferingSince == 0L) bufferingSince = mono() }
                 Player.STATE_READY -> {
                     spin.visibility = View.GONE
                     msg.visibility = View.GONE
-                    if (firstReady && bufferingSince > 0L) stalled()
+                    if (firstReady && bufferingSince > 0L && !seeking) stalled()
+                    seeking = false
                     firstReady = true
                     reconnects = 0
                     bufferingSince = 0L
@@ -342,30 +352,37 @@ class PlayerActivity : BaseActivity() {
         override fun onPlayerError(error: PlaybackException) {
             val p = player ?: return
             if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+                seeking = true
                 p.seekToDefaultPosition()
                 p.prepare()
                 return
             }
-            recover("error", error.errorCodeName.removePrefix("ERROR_CODE_").lowercase(Locale.ROOT))
+            // 4000-4999 = errori del decoder (lì serve la decodifica software), il resto è rete o formato
+            recover("error", error.errorCodeName.removePrefix("ERROR_CODE_").lowercase(Locale.ROOT), decoderError = error.errorCode in 4000..4999)
         }
     }
 
     /* ---------------- recupero automatico ---------------- */
+    /** orologio che non salta (le chiavette senza batteria tampone correggono l'ora all'avvio) */
+    private fun mono(): Long = android.os.SystemClock.elapsedRealtime()
+
     /** un blocco (caricamento a metà visione): 3 in 75 secondi = la linea non regge */
     private fun stalled() {
-        val now = System.currentTimeMillis()
-        stalls.add(now); stallsHour.add(now)
+        val now = mono()
+        stalls.add(now); stallsHour.add(now); lastStallAt = now
         stalls.removeAll { now - it > 75_000 }
         if (stalls.size >= 3) { stalls.clear(); recover("stall", "3 blocchi in 75 s") }
     }
 
-    /** un blocco di oltre 12 secondi (o un avvio di oltre 20) */
+    /** un blocco di oltre 12 secondi (o un avvio di oltre 20), solo mentre il lettore sta davvero caricando */
     private fun checkStall() {
-        if (bufferingSince == 0L || blocked || player == null) return
-        val d = System.currentTimeMillis() - bufferingSince
+        val p = player ?: return
+        if (bufferingSince == 0L || blocked) return
+        if (p.playbackState != Player.STATE_BUFFERING) return
+        val d = mono() - bufferingSince
         if ((firstReady && d > 12_000) || (!firstReady && d > 20_000)) {
             bufferingSince = 0L
-            stallsHour.add(System.currentTimeMillis())
+            stallsHour.add(mono()); lastStallAt = mono()
             recover("stall", if (firstReady) "blocco di oltre 12 s" else "avvio lento")
         }
     }
@@ -374,11 +391,14 @@ class PlayerActivity : BaseActivity() {
     private fun checkFreeze() {
         val p = player ?: return
         if (p.playbackState != Player.STATE_READY || !p.playWhenReady || p.videoFormat == null) { frozen = 0; lastRendered = -1; return }
+        // fine di un film: la traccia video spesso finisce qualche secondo prima dell'audio
+        if (!live && p.duration > 0 && p.duration - p.currentPosition < 10_000) { frozen = 0; return }
         val c = p.videoDecoderCounters ?: return
         c.ensureUpdated()
         val n = c.renderedOutputBufferCount
         val pos = p.currentPosition
         frozen = if (n == lastRendered && pos != lastPos) frozen + 1 else 0
+        if (n != lastRendered) lastFrameAt = mono()
         lastRendered = n
         lastPos = pos
         if (frozen >= 4) {
@@ -388,50 +408,83 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    /** dopo 10 secondi di visione regolare il problema è risolto */
+    /**
+     * Problema risolto quando la visione è regolare abbastanza a lungo:
+     * blocchi = 75 s senza blocchi; immagine ferma = fotogrammi che avanzano; errore = 10 s di visione.
+     */
     private fun checkResolved() {
         if (problem.isEmpty() || fixAt == 0L) return
         val p = player ?: return
-        if (p.isPlaying && bufferingSince == 0L && System.currentTimeMillis() - fixAt > 10_000) {
-            event(problem, lastAction, "risolto", problemErr)
-            problem = ""
-            fixAt = 0L
+        val now = mono()
+        if (!p.isPlaying || bufferingSince != 0L) return
+        val ok = when (problem) {
+            "stall" -> now - fixAt > 75_000 && now - lastStallAt > 75_000
+            "freeze" -> now - fixAt > 10_000 && frozen == 0 && now - lastFrameAt < 2_000
+            else -> now - fixAt > 10_000
         }
+        if (!ok) return
+        event(problem, lastAction, "risolto", problemErr)
+        // se lo stesso problema torna entro 3 minuti si riparte dal passo successivo, non da capo
+        lastKind = problem; lastStep = step; resolvedAt = now
+        problem = ""
+        fixAt = 0L
+    }
+
+    /** chiude il problema in corso (il cliente ha cambiato canale, episodio o è uscito) */
+    private fun closeProblem() {
+        if (problem.isNotEmpty()) event(problem, lastAction.ifEmpty { "nessuna" }, "chiuso", problemErr)
+        problem = ""
+        fixAt = 0L
+        lastKind = ""
     }
 
     /**
      * Prova le soluzioni in ordine senza far uscire il cliente. L'ordine dipende dal problema:
-     * immagine ferma = dispositivo (decodifica software), blocchi = linea (versione più leggera).
+     * immagine ferma o errore del decoder = dispositivo (decodifica software), blocchi = linea (versione più leggera).
      */
-    private fun recover(kind: String, err: String) {
+    private fun recover(kind: String, err: String, decoderError: Boolean = false) {
         val p = player ?: return
         if (blocked) return
-        val now = System.currentTimeMillis()
-        if (problem.isEmpty()) { problem = kind; problemErr = err; step = 0; lastAction = "" }
-        else if (now - fixAt < 4_000) return // una soluzione è appena partita
+        val now = mono()
+        val fresh = problem.isEmpty()
+        if (fresh) {
+            problem = kind; problemErr = err; lastAction = ""
+            step = if (kind == lastKind && now - resolvedAt < 180_000) lastStep else 0
+            decoderProblem = decoderError
+        } else {
+            // una soluzione è appena partita: i blocchi e l'immagine ferma si ricontrollano dopo; gli errori no
+            if (kind != "error" && now - fixAt < 4_000) return
+            if (decoderError) decoderProblem = true
+        }
         // tornati alla qualità piena e la linea non regge ancora: si resta su quella ridotta
         if (tryingFull && kind == "stall") {
             tryingFull = false
             stayReduced = true
-            if (switchLighter()) { lastAction = "versione più leggera"; fixAt = now; return }
+            if (switchLighter(byLine = true)) { lastAction = "versione più leggera"; fixAt = now; return }
         }
         val ladder = if (live) when (problem) {
             "freeze" -> listOf("reload", "soft", "alt", "lighter")
             "stall" -> listOf("reload", "alt", "lighter")
             else -> listOf("reload", "alt", "soft", "lighter")
         } else when (problem) {
-            "stall" -> listOf("reload")
+            "stall" -> listOf("reload", "reload")
             else -> listOf("reload", "soft")
         }
+        // stesso problema tornato dopo l'ultima soluzione possibile: si ricomincia (una volta) dal primo passo
+        if (fresh && step >= ladder.size) step = 0
         while (step < ladder.size) {
             val a = ladder[step++]
-            if (applyFix(a)) { fixAt = now; return }
+            if (applyFix(a)) { fixAt = mono(); return }
         }
-        // provato tutto
+        // provato tutto: ci si ferma (nessun nuovo tentativo finché il cliente non sceglie)
         event(problem, lastAction.ifEmpty { "nessuna" }, "non risolto", problemErr)
         problem = ""
         fixAt = 0L
+        lastKind = ""
+        bufferingSince = 0L
+        gaveUp = true
         spin.visibility = View.GONE
+        App.main.removeCallbacks(retryR)
         try { p.stop() } catch (_: Exception) {}
         showMsg(if (live) "Il canale non risponde in questo momento.\nProva più tardi o scegli un altro canale." else "Il contenuto non si apre ($err).\nRiprova più tardi.")
     }
@@ -444,14 +497,11 @@ class PlayerActivity : BaseActivity() {
             App.main.postDelayed(retryR, 1_200)
             true
         }
-        "soft" -> if (soft) false else {
+        // decodifica software solo per immagine ferma o errori del decoder, mai per problemi di rete
+        "soft" -> if (soft || (problem == "error" && !decoderProblem)) false else {
             lastAction = "decodifica software"
             notice("Provo la decodifica software…")
-            soft = true
-            val pos = player?.currentPosition ?: 0L
-            releasePlayer()
-            newPlayer()
-            startUrl(if (live) null else pos)
+            setSoft(true, if (live) null else player?.currentPosition, restart = true)
             true
         }
         "alt" -> if (!live || urls.size < 2) false else {
@@ -461,8 +511,25 @@ class PlayerActivity : BaseActivity() {
             startUrl()
             true
         }
-        "lighter" -> if (switchLighter()) { lastAction = "versione più leggera"; true } else false
+        "lighter" -> if (switchLighter(byLine = problem == "stall")) { lastAction = "versione più leggera"; true } else false
         else -> false
+    }
+
+    /** decodifica software accesa/spenta: il lettore va ricreato. [restart] = riparte subito lo stesso contenuto */
+    private fun setSoft(on: Boolean, pos: Long?, restart: Boolean = false) {
+        if (soft == on) return
+        soft = on
+        if (player == null) return
+        releasePlayer()
+        newPlayer()
+        if (restart) startUrl(pos)
+    }
+
+    private fun sendEvents() {
+        if (events.length() == 0) return
+        val e = JSONArray(events.toString())
+        while (events.length() > 0) events.remove(0)
+        bg { Panel.errors(e) }
     }
 
     /** versione più leggera dello stesso canale (mai una HEVC come ripiego di un canale che non lo è) */
@@ -472,28 +539,28 @@ class PlayerActivity : BaseActivity() {
         return variants.filter { it.q < q && (!it.hevc || hv) }.maxByOrNull { it.q }
     }
 
-    private fun switchLighter(): Boolean {
+    /** [byLine]: la causa è la connessione (solo allora i canali successivi partono ridotti) */
+    private fun switchLighter(byLine: Boolean): Boolean {
         val r = row ?: return false
+        if (baseRow?.l("_id") != curId) return false // nel frattempo il cliente ha cambiato canale
         val v = lighterThan(r) ?: return false
-        val now = System.currentTimeMillis()
+        val now = mono()
         reduced = true
         reducedAt = now
-        lighterUntil = now + 10 * 60_000L
-        notice("Qualità ridotta per la tua connessione", 5_000)
+        if (byLine) lighterUntil = now + 10 * 60_000L else stayReduced = true // versione piena guasta: non si riprova
+        notice(if (byLine) "Qualità ridotta per la tua connessione" else "Passo a un'altra versione del canale", 5_000)
         tune(v.id, variant = true)
         return true
     }
 
     /** dopo 6 minuti senza blocchi si riprova la qualità piena; se torna a bloccarsi resta ridotta */
     private fun checkReduced() {
-        if (!live || !reduced || stayReduced || blocked) {
-            if (tryingFull && System.currentTimeMillis() - tryFullAt > 120_000) tryingFull = false
-            return
-        }
-        val now = System.currentTimeMillis()
-        if (tryingFull) { if (now - tryFullAt > 120_000) tryingFull = false; return }
-        if (now - reducedAt < 6 * 60_000L || stallsHour.any { now - it < 6 * 60_000L } || problem.isNotEmpty()) return
+        val now = mono()
+        if (tryingFull && now - tryFullAt > 120_000) tryingFull = false
+        if (!live || !reduced || stayReduced || blocked || tryingFull || problem.isNotEmpty()) return
+        if (now - reducedAt < 6 * 60_000L || now - lastStallAt < 6 * 60_000L) return
         val b = baseRow ?: return
+        if (b.l("_id") != curId) return
         tryingFull = true
         tryFullAt = now
         reduced = false
@@ -520,7 +587,7 @@ class PlayerActivity : BaseActivity() {
             o.put("codec", codecName(f.sampleMimeType ?: ""))
         }
         if (decoderName.isNotEmpty()) o.put("dec", if (decoderName.startsWith("OMX.google") || decoderName.startsWith("c2.android")) "sw" else "hw")
-        val now = System.currentTimeMillis()
+        val now = mono()
         stallsHour.removeAll { now - it > 3_600_000L }
         o.put("stallsH", stallsHour.size).put("buffers", stallsHour.size).put("dropped", dropped)
         o.put("reduced", if (reduced) Quality.label(row?.l("q")?.toInt() ?: 2) else "")
@@ -538,9 +605,10 @@ class PlayerActivity : BaseActivity() {
 
     private fun event(problem: String, action: String, outcome: String, err: String) {
         if (events.length() >= 20) return
-        val title = if (live) row?.s("name") ?: "" else vodTitle
+        val base = baseRow ?: row
+        val title = if (live) base?.s("name") ?: "" else vodTitle
         events.put(JSONObject().put("t", System.currentTimeMillis()).put("problem", problem).put("action", action).put("outcome", outcome)
-            .put("err", err).put("title", title).put("id", if (live) row?.s("k") ?: "" else vodId).put("k", if (live) "live" else kind).put("engine", "exo"))
+            .put("err", err).put("title", title).put("id", if (live) base?.s("k") ?: "" else vodId).put("k", if (live) "live" else kind).put("engine", "exo"))
     }
 
     /* ---------------- diretta ---------------- */
@@ -562,12 +630,17 @@ class PlayerActivity : BaseActivity() {
     /** [variant] = un'altra versione dello stesso canale (qualità adattiva), non un cambio canale */
     private fun tune(id: Long, variant: Boolean = false) {
         if (id <= 0) return
+        if (!variant) {
+            closeProblem() // problema del canale di prima: il cliente è passato oltre
+            setSoft(false, null)
+            dropped = 0
+        }
         val my = ++tuneSeq
         if (!variant) curId = id
         App.main.removeCallbacks(retryR)
         msg.visibility = View.GONE
         spin.visibility = View.VISIBLE
-        val lighter = !variant && System.currentTimeMillis() < lighterUntil
+        val lighter = !variant && mono() < lighterUntil
         val keepVariants = variants
         bg {
             val r0 = Db.one("live", id) ?: return@bg
@@ -588,12 +661,9 @@ class PlayerActivity : BaseActivity() {
                     baseRow = r0
                     variants = vars
                     reduced = startReduced
-                    reducedAt = if (startReduced) System.currentTimeMillis() else 0L
+                    reducedAt = if (startReduced) mono() else 0L
                     stayReduced = false
                     tryingFull = false
-                    problem = ""
-                    step = 0
-                    fixAt = 0L
                     stalls.clear()
                     progs = emptyList()
                     if (startReduced) notice("Qualità ridotta per la tua connessione", 4_000)
@@ -601,8 +671,6 @@ class PlayerActivity : BaseActivity() {
                 row = r
                 urls = list
                 urlIdx = 0
-                firstReady = false
-                bufferingSince = 0L
                 Store.lastLiveId = curId
                 showLiveInfo(baseRow ?: r)
                 blocked = block != null
@@ -622,8 +690,9 @@ class PlayerActivity : BaseActivity() {
         if (blocked) return
         val u = if (live) urls.getOrNull(urlIdx) else vodUrl
         if (u.isNullOrEmpty()) return
-        bufferingSince = 0L
+        bufferingSince = mono() // il tempo di avvio si conta da qui (il lettore può restare in caricamento)
         firstReady = false
+        gaveUp = false
         // film: si riparte dal punto in cui si era (un errore di rete non fa ricominciare da capo)
         if (live) p.setMediaItem(Players.item(u)) else p.setMediaItem(Players.item(u), maxOf(pos ?: p.currentPosition, 0L))
         p.prepare()
@@ -646,7 +715,7 @@ class PlayerActivity : BaseActivity() {
         bg {
             val list = Epg.get(p, sid, 3)
             ui {
-                if (my != tuneSeq) return@ui
+                if (r.l("_id") != curId) return@ui // stesso canale anche se è cambiata la versione
                 progs = list
                 val now = list.firstOrNull()
                 subV.text = now?.title ?: ""
@@ -718,8 +787,7 @@ class PlayerActivity : BaseActivity() {
                 if (block != null) { spin.visibility = View.GONE; showMsg(block); return@ui }
                 if (vodUrl.isEmpty()) { spin.visibility = View.GONE; showMsg("Indirizzo non valido."); return@ui }
                 firstReady = false
-                bufferingSince = 0L
-                problem = ""
+                bufferingSince = mono()
                 stalls.clear()
                 p.setMediaItem(Players.item(vodUrl), startPos.coerceAtLeast(0))
                 p.prepare()
@@ -749,6 +817,8 @@ class PlayerActivity : BaseActivity() {
     }
 
     private fun onEnded() {
+        closeProblem()
+        dropped = 0
         Store.setPosition(vodId, 0)
         Store.removeRecent(vodId)
         if (queue.length() == 0) { finish(); return }
@@ -762,6 +832,7 @@ class PlayerActivity : BaseActivity() {
         vodUrl = n.optString("url")
         recent = n.optJSONObject("recent")
         startPos = Store.position(vodId)
+        setSoft(false, null)
         startVod()
     }
 
@@ -770,6 +841,7 @@ class PlayerActivity : BaseActivity() {
         val d = p.duration
         var t = p.currentPosition + ms
         if (d > 0 && d != C.TIME_UNSET) t = t.coerceAtMost(d - 1000)
+        seeking = true // il caricamento dopo uno spostamento non è un blocco della linea
         p.seekTo(t.coerceAtLeast(0))
         updateTime()
     }
