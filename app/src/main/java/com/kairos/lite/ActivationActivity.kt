@@ -16,6 +16,7 @@ class ActivationActivity : BaseActivity() {
 
     private lateinit var status: TextView
     private lateinit var retry: Button
+    private lateinit var hero: TextView
     private var routed = false
     private var privacyShown = false
     private var alive = false
@@ -33,6 +34,7 @@ class ActivationActivity : BaseActivity() {
         setContentView(R.layout.activity_activation)
         status = findViewById(R.id.status)
         retry = findViewById(R.id.retry)
+        hero = findViewById(R.id.hero)
         findViewById<TextView>(R.id.code).text = Store.code
         findViewById<TextView>(R.id.version).text = getString(R.string.app_name) + " " + BuildConfig.VERSION_NAME
         val brand = cached?.setting("brand").orEmpty()
@@ -82,14 +84,17 @@ class ActivationActivity : BaseActivity() {
         if (isFinishing || routed) return
         when (s.status) {
             "active" -> { route(); return }
+            "maintenance" -> say(s.maintMsg.ifEmpty { "Servizio in manutenzione: torna disponibile tra poco." } + "\nL'app riparte da sola appena finisce.", true)
             "locked" -> say("Questo codice è già usato da un altro dispositivo. Chiedi al tuo fornitore di sbloccarlo dal pannello.", true)
             "expired" -> say("Abbonamento scaduto il ${Ui.date(s.expires)}." + contact(s), true)
             "disabled" -> say("Abbonamento sospeso dal fornitore." + contact(s), true)
             else -> say("In attesa di attivazione…", false)
         }
-        if (!Store.privacyOk && !privacyShown) { privacyShown = true; showPrivacy() }
+        hero.text = if (s.status == "maintenance") "Manutenzione in corso." else "Attiva la tua TV."
+        findViewById<View>(R.id.codeBox).visibility = if (s.status == "maintenance") View.GONE else View.VISIBLE
+        if (!Store.privacyOk && !privacyShown && s.status != "maintenance") { privacyShown = true; showPrivacy() }
         // in attesa ogni 12 s (come KAIROS TV); bloccato, scaduto o sospeso: ogni minuto
-        later(if (s.status == "pending") 12_000 else 60_000)
+        later(when (s.status) { "pending" -> 12_000L; "maintenance" -> 30_000L; else -> 60_000L })
     }
 
     private fun contact(s: State): String {

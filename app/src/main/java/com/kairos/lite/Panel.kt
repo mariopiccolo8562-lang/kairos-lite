@@ -106,6 +106,8 @@ class State(
     val status: String, val name: String, val expires: String, val settings: JSONObject,
     val playlists: List<Playlist>, val messages: List<Msg>, val account: Account?,
     val vpnMode: String, val vpnConf: String, val perms: JSONObject?,
+    /** messaggio della manutenzione (status «maintenance») */
+    val maintMsg: String = "",
 ) {
     val active: Boolean get() = status == "active"
     fun perm(k: String): Boolean = perms?.optBoolean(k, true) ?: true
@@ -132,6 +134,7 @@ class State(
                 Account.from(j.optJSONObject("account")),
                 vpn?.optString("mode", "off") ?: "off", vpn?.optString("conf", "") ?: "",
                 j.optJSONObject("perms"),
+                j.optString("maintMsg"),
             )
         }
         fun locked() = State("locked", "", "", JSONObject(), emptyList(), emptyList(), null, "off", "", null)
@@ -183,7 +186,8 @@ object Panel {
         val cache = JSONObject(j.toString())
         cache.remove("vpn")
         cache.put("vpn", JSONObject().put("mode", s.vpnMode))
-        Store.stateJson = if (s.active) cache.toString() else ""
+        // manutenzione: resta l'ultimo stato buono, l'abbonamento non è cambiato
+        if (s.status != "maintenance") Store.stateJson = if (s.active) cache.toString() else ""
         state = s
         return s
     }
