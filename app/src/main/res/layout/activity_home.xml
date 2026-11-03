@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical"
+    android:padding="@dimen/pad">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/topbar_h"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <ImageView
+            android:layout_width="@dimen/logo"
+            android:layout_height="@dimen/logo"
+            android:src="@drawable/ic_logo" />
+        <TextView
+            android:id="@+id/brand"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="10dp"
+            android:layout_weight="1"
+            android:singleLine="true"
+            android:text="Kairos"
+            android:textColor="@color/text"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginRight="14dp"
+            android:gravity="right"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/muted"
+                android:textSize="@dimen/text_s" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/account"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/icon_btn"
+            android:background="@drawable/bg_icon_btn"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingLeft="5dp"
+            android:paddingRight="16dp">
+            <TextView
+                android:id="@+id/avatar"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:textColor="@color/on_accent"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="9dp"
+                android:orientation="vertical">
+                <TextView
+                    android:id="@+id/accName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:duplicateParentState="true"
+                    android:maxWidth="160dp"
+                    android:singleLine="true"
+                    android:textColor="@color/on_focus_text"
+                    android:textSize="@dimen/text_s"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/accExp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:duplicateParentState="true"
+                    android:singleLine="true"
+                    android:textColor="@color/on_focus_muted"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+        <ImageButton
+            android:id="@+id/search"
+            style="@style/IconBtn"
+            android:layout_marginLeft="10dp"
+            android:contentDescription="Cerca"
+            android:src="@drawable/ic_search" />
+        <ImageButton
+            android:id="@+id/settings"
+            style="@style/IconBtn"
+            android:layout_marginLeft="10dp"
+            android:contentDescription="Impostazioni"
+            android:src="@drawable/ic_settings" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/tiles"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="@dimen/gap"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+        <LinearLayout
+            android:id="@+id/tileLive"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1.35"
+            android:background="@drawable/bg_tile"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:padding="22dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <ImageView
+                    android:layout_width="@dimen/tile_icon"
+                    android:layout_height="@dimen/tile_icon"
+                    android:duplicateParentState="true"
+                    android:src="@drawable/ic_tv"
+                    android:tint="@color/on_focus_icon" />
+                <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="26dp"
+                    android:background="@drawable/bg_live"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingLeft="11dp"
+                    android:paddingRight="11dp">
+                    <View android:layout_width="7dp" android:layout_height="7dp" android:background="@drawable/dot_red" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="6dp"
+                        android:letterSpacing="0.08"
+                        android:text="LIVE"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+            <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:duplicateParentState="true"
+                android:text="TV in diretta"
+                android:textColor="@color/on_focus_text"
+                android:textSize="@dimen/tile_title"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/subLive"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:duplicateParentState="true"
+                android:singleLine="true"
+                android:textColor="@color/on_focus_muted"
+                android:textSize="@dimen/tile_sub"
+                android:textStyle="bold" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/tileFilm"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginLeft="@dimen/gap"
+            android:layout_weight="1"
+            android:background="@drawable/bg_tile"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:padding="22dp">
+            <ImageView
+                android:layout_width="@dimen/tile_icon"
+                android:layout_height="@dimen/tile_icon"
+                android:duplicateParentState="true"
+                android:src="@drawable/ic_film"
+                android:tint="@color/on_focus_icon" />
+            <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:duplicateParentState="true"
+                android:text="Film"
+                android:textColor="@color/on_focus_text"
+                android:textSize="@dimen/tile_title"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/subFilm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:duplicateParentState="true"
+                android:singleLine="true"
+                android:textColor="@color/on_focus_muted"
+                android:textSize="@dimen/tile_sub" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/tileSeries"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginLeft="@dimen/gap"
+            android:layout_weight="1"
+            android:background="@drawable/bg_tile"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:padding="22dp">
+            <ImageView
+                android:layout_width="@dimen/tile_icon"
+                android:layout_height="@dimen/tile_icon"
+                android:duplicateParentState="true"
+                android:src="@drawable/ic_series"
+                android:tint="@color/on_focus_icon" />
+            <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:duplicateParentState="true"
+                android:text="Serie TV"
+                android:textColor="@color/on_focus_text"
+                android:textSize="@dimen/tile_title"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/subSeries"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:duplicateParentState="true"
+                android:singleLine="true"
+                android:textColor="@color/on_focus_muted"
+                android:textSize="@dimen/tile_sub" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/sync"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textColor="@color/muted"
+        android:textSize="@dimen/text_s"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/recentBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/gap"
+        android:orientation="vertical"
+        android:visibility="gone">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Continua a guardare"
+                android:textColor="@color/text"
+                android:textSize="@dimen/text_l"
+                android:textStyle="bold" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tieni premuto OK per rimuovere"
+                android:textColor="@color/muted"
+                android:textSize="@dimen/text_s" />
+        </LinearLayout>
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recent"
+            style="@style/List"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" />
+    </LinearLayout>
+</LinearLayout>
