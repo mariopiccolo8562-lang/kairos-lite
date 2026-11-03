@@ -192,12 +192,15 @@ object Panel {
         return s
     }
 
-    fun heartbeat(w: Pulse.Watch?, kickAck: Long, vpnOn: Boolean, screen: String): JSONObject? {
+    fun heartbeat(w: Pulse.Watch?, kickAck: Long, vpnOn: Boolean, screen: String, stats: JSONObject?): JSONObject? {
         val b = auth()
             .put("state", w?.state ?: "idle").put("title", w?.title ?: "").put("ch", w?.ch ?: "").put("chId", w?.chId ?: "")
             .put("group", w?.group ?: "").put("pl", w?.pl ?: "").put("prof", K.profile()?.name ?: "")
             .put("ver", ver).put("ui", "").put("model", model).put("screen", screen.take(20))
-            .put("net", JSONObject().put("type", Net.type())).put("vpn", if (vpnOn) "on" else "off")
+            .put("net", JSONObject().put("type", Net.type()).apply { if (Net.type() == "wifi") Net.rssi().takeIf { it != 0 }?.let { put("rssi", it) } })
+            .put("vpn", if (vpnOn) "on" else "off")
+        // diagnostica in «Online ora»: codec, decodifica, blocchi, fotogrammi persi, qualità ridotta
+        if (stats != null) b.put("stats", stats)
         if (kickAck > 0) b.put("kickAck", kickAck)
         return try { val (c, j) = post("/api/player/heartbeat", b); if (c == 200) j else null } catch (_: Exception) { null }
     }

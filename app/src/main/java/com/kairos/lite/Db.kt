@@ -11,13 +11,14 @@ import android.database.sqlite.SQLiteOpenHelper
  */
 object Db {
     private const val NAME = "lib.db"
-    private const val VERSION = 1
+    private const val VERSION = 2 // 2: versioni dei canali (qualità adattiva)
 
     private val SCHEMA = listOf(
         "CREATE TABLE cat (kind TEXT, id TEXT, name TEXT, ord INTEGER, pl TEXT, adult INTEGER)",
         "CREATE INDEX cat_k ON cat(kind, pl)",
-        "CREATE TABLE live (_id INTEGER PRIMARY KEY, k TEXT, pl TEXT, cat TEXT, num INTEGER, name TEXT, logo TEXT, sid TEXT, url TEXT, epg TEXT, adult INTEGER)",
+        "CREATE TABLE live (_id INTEGER PRIMARY KEY, k TEXT, pl TEXT, cat TEXT, num INTEGER, name TEXT, logo TEXT, sid TEXT, url TEXT, epg TEXT, adult INTEGER, qkey TEXT, q INTEGER, hevc INTEGER)",
         "CREATE INDEX live_cat ON live(cat)",
+        "CREATE INDEX live_q ON live(qkey)",
         "CREATE INDEX live_k ON live(k)",
         "CREATE TABLE vod (_id INTEGER PRIMARY KEY, k TEXT, pl TEXT, cat TEXT, name TEXT, img TEXT, sid TEXT, ext TEXT, url TEXT, rating TEXT, year TEXT, added INTEGER, adult INTEGER)",
         "CREATE INDEX vod_cat ON vod(cat)",
@@ -37,6 +38,7 @@ object Db {
         override fun onUpgrade(db: SQLiteDatabase, oldV: Int, newV: Int) {
             listOf("cat", "live", "vod", "series", "ep").forEach { db.execSQL("DROP TABLE IF EXISTS $it") }
             onCreate(db)
+            Store.syncSig = "" // archivio nuovo: le liste si ricaricano
         }
     }
 
@@ -119,7 +121,7 @@ object Db {
     } catch (_: Exception) { true }
 
     /* ---------------- canali ---------------- */
-    private const val LIVE_COLS = "_id, k, pl, cat, num, name, logo, sid, url, epg"
+    private const val LIVE_COLS = "_id, k, pl, cat, num, name, logo, sid, url, epg, qkey, q, hevc"
 
     fun live(cat: String, pls: List<String>, kids: Boolean, favs: Set<String>): Cursor {
         val q = base(pls, kids)
@@ -176,6 +178,19 @@ object Db {
         r.rawQuery("SELECT * FROM $table WHERE _id = ?", arrayOf(id.toString())).use { c -> if (c.moveToFirst()) row(c) else null }
 
     fun current(c: Cursor): Row = row(c)
+
+    /** altre versioni dello stesso canale nella stessa playlist (4K/FHD/HD/SD) */
+    class Variant(val id: Long, val name: String, val q: Int, val hevc: Boolean)
+
+    fun variants(r: Row): List<Variant> {
+        val key = r.s("qkey")
+        if (key.isEmpty()) return emptyList()
+        val out = ArrayList<Variant>()
+        this.r.rawQuery("SELECT _id, name, q, hevc FROM live WHERE qkey = ? AND pl = ? AND _id != ? ORDER BY q DESC, _id LIMIT 8", arrayOf(key, r.s("pl"), r.s("_id"))).use { c ->
+            while (c.moveToNext()) out.add(Variant(c.getLong(0), c.getString(1) ?: "", c.getInt(2), c.getInt(3) == 1))
+        }
+        return out
+    }
 
     class Ep(val season: Int, val num: Int, val title: String, val url: String)
 

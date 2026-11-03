@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.bumptech.glide.Glide
 import androidx.recyclerview.widget.RecyclerView
 
 /** Adapter sopra un Cursor SQLite: legge solo le righe che si vedono */
@@ -45,6 +46,14 @@ fun RecyclerView.fast(horizontal: Boolean = false) {
     setHasFixedSize(true)
     setItemViewCacheSize(if (App.lite) 6 else 14)
     if (layoutManager == null) layoutManager = LinearLayoutManager(context, if (horizontal) RecyclerView.HORIZONTAL else RecyclerView.VERTICAL, false)
+    // tasto tenuto premuto: si scorre senza caricare le immagini, che arrivano appena ci si ferma
+    addOnScrollListener(object : RecyclerView.OnScrollListener() {
+        override fun onScrollStateChanged(rv: RecyclerView, state: Int) {
+            try {
+                if (state == RecyclerView.SCROLL_STATE_IDLE) Glide.with(rv).resumeRequests() else if (App.lite) Glide.with(rv).pauseRequests()
+            } catch (_: Exception) {}
+        }
+    })
 }
 
 /** colonna delle categorie (Diretta, Film, Serie) */

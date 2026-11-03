@@ -15,6 +15,8 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
@@ -25,7 +27,8 @@ import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 /** ExoPlayer configurato per IPTV su dispositivi anche vecchi */
 @OptIn(UnstableApi::class)
 object Players {
-    fun build(ctx: Context, live: Boolean): ExoPlayer {
+    /** [soft] = decodifica software (rimedio quando il decoder hardware si blocca) */
+    fun build(ctx: Context, live: Boolean, soft: Boolean = false): ExoPlayer {
         val http = DefaultHttpDataSource.Factory()
             .setUserAgent(Http.UA)
             .setAllowCrossProtocolRedirects(true)
@@ -50,10 +53,16 @@ object Players {
         val renderers = KxRenderersFactory(ctx)
             .setEnableDecoderFallback(true)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+        if (soft) renderers.setMediaCodecSelector { mime, secure, tunneling ->
+            MediaCodecUtil.getDecoderInfos(mime, secure, tunneling).sortedBy { if (it.softwareOnly) 0 else 1 }
+        }
+        // stima iniziale prudente sulle chiavette: i canali HLS con più qualità partono subito e poi salgono
+        val meter = DefaultBandwidthMeter.Builder(ctx).setInitialBitrateEstimate(if (lite) 2_500_000L else 6_000_000L).build()
         val selector = DefaultTrackSelector(ctx)
         // niente qualità più alta dello schermo (una TV 720p non scarica il 1080p)
         selector.setParameters(selector.buildUponParameters().setViewportSizeToPhysicalDisplaySize(ctx, true).setPreferredAudioLanguage("it"))
         val p = ExoPlayer.Builder(ctx, renderers)
+            .setBandwidthMeter(meter)
             .setTrackSelector(selector)
             .setLoadControl(load)
             .setMediaSourceFactory(sources)

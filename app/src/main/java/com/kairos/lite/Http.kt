@@ -67,6 +67,14 @@ object Http {
 }
 
 object Net {
+    /** potenza del Wi-Fi (dBm) per la diagnostica del pannello; 0 se non si sa */
+    @Suppress("DEPRECATION")
+    fun rssi(): Int = try {
+        val wm = App.I.applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+        val r = wm.connectionInfo?.rssi ?: 0
+        if (r in -120..-1) r else 0
+    } catch (_: Exception) { 0 }
+
     @Suppress("DEPRECATION")
     fun type(): String = try {
         val cm = App.I.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager

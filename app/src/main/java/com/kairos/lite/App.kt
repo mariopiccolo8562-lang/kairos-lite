@@ -10,7 +10,12 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.bumptech.glide.Glide
-import com.bumptech.glide.MemoryCategory
+import com.bumptech.glide.GlideBuilder
+import com.bumptech.glide.load.DecodeFormat
+import com.bumptech.glide.load.engine.bitmap_recycle.LruBitmapPool
+import com.bumptech.glide.load.engine.cache.InternalCacheDiskCacheFactory
+import com.bumptech.glide.load.engine.cache.LruResourceCache
+import com.bumptech.glide.request.RequestOptions
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -26,7 +31,16 @@ class App : Application() {
         Store.init(this)
         Db.init(this)
         lite = detectLite()
-        if (lite) try { Glide.get(this).setMemoryCategory(MemoryCategory.LOW) } catch (_: Throwable) {}
+        // immagini: memoria e spazio su disco limitati (le chiavette hanno 1 GB di RAM e poco spazio)
+        try {
+            val mem = if (lite) 6L shl 20 else 20L shl 20
+            Glide.init(this, GlideBuilder()
+                .setMemoryCache(LruResourceCache(mem))
+                .setBitmapPool(LruBitmapPool(mem / 2))
+                .setDiskCache(InternalCacheDiskCacheFactory(this, "img", if (lite) 40L shl 20 else 120L shl 20))
+                .setDefaultRequestOptions(RequestOptions().format(if (lite) DecodeFormat.PREFER_RGB_565 else DecodeFormat.PREFER_ARGB_8888))
+                .setLogLevel(android.util.Log.ERROR))
+        } catch (_: Throwable) {}
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(a: Activity, b: Bundle?) {}
             override fun onActivityStarted(a: Activity) {

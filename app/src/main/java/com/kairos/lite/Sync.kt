@@ -122,7 +122,14 @@ object Sync {
     /* ---------------- scrittura ---------------- */
     private class Stmts(db: SQLiteDatabase, base: Long) {
         val cat: SQLiteStatement = db.compileStatement("INSERT INTO cat(kind,id,name,ord,pl,adult) VALUES(?,?,?,?,?,?)")
-        val live: SQLiteStatement = db.compileStatement("INSERT INTO live(k,pl,cat,num,name,logo,sid,url,epg,adult) VALUES(?,?,?,?,?,?,?,?,?,?)")
+        val live: SQLiteStatement = db.compileStatement("INSERT INTO live(k,pl,cat,num,name,logo,sid,url,epg,adult,qkey,q,hevc) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
+
+        /** versione del canale (chiave comune, qualità, HEVC) dopo gli altri campi */
+        fun quality(name: String) {
+            live.bindString(11, Quality.key(name))
+            live.bindLong(12, Quality.rank(name).toLong())
+            live.bindLong(13, if (Quality.hevc(name)) 1 else 0)
+        }
         val vod: SQLiteStatement = db.compileStatement("INSERT INTO vod(k,pl,cat,name,img,sid,ext,url,rating,year,added,adult) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
         val series: SQLiteStatement = db.compileStatement("INSERT INTO series(k,pl,cat,name,img,sid,ext,url,rating,year,added,adult,plot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
         val ep: SQLiteStatement = db.compileStatement("INSERT INTO ep(series,season,num,title,url) VALUES(?,?,?,?,?)")
@@ -175,6 +182,7 @@ object Sync {
             s.bindString(1, p.id + ":" + sid); s.bindString(2, p.id); s.bindString(3, cat)
             s.bindLong(4, o["num"]?.toDoubleOrNull()?.toLong() ?: n); s.bindString(5, name); s.s(6, o["stream_icon"])
             s.bindString(7, sid); s.bindNull(8); s.s(9, o["epg_channel_id"]); s.bindLong(10, if (ad || adult(name)) 1 else 0)
+            st.quality(name)
             s.executeInsert()
         }
         step(30)
@@ -350,6 +358,7 @@ object Sync {
                         s.bindString(1, key); s.bindString(2, p.id); s.bindString(3, cat("live", m.group))
                         s.bindLong(4, if (m.num > 0) m.num else n); s.bindString(5, m.name); s.bindString(6, m.logo)
                         s.bindNull(7); s.bindString(8, l); s.bindNull(9); s.bindLong(10, if (ad) 1 else 0)
+                        st.quality(m.name)
                         s.executeInsert()
                     }
                 }

@@ -13,6 +13,8 @@ object Pulse {
     class Watch(val state: String, val title: String, val ch: String, val chId: String, val group: String, val pl: String)
 
     @Volatile var watching: Watch? = null
+    /** statistiche della visione in corso (le fornisce il player) */
+    @Volatile var stats: (() -> JSONObject?)? = null
     private var on = false
     private var lastHb = 0L
     private var lastSig = ""
@@ -56,8 +58,9 @@ object Pulse {
         lastSig = sig
         lastHb = now
         val screen = App.top?.javaClass?.simpleName?.removeSuffix("Activity")?.lowercase() ?: ""
+        val st2 = if (w != null) try { stats?.invoke() } catch (_: Exception) { null } else null
         bg {
-            val j = Panel.heartbeat(w, kickAck, KxVpn.state == "on", screen) ?: return@bg
+            val j = Panel.heartbeat(w, kickAck, KxVpn.state == "on", screen, st2) ?: return@bg
             handle(j)
         }
     }
