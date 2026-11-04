@@ -641,16 +641,22 @@ class PlayerActivity : BaseActivity() {
         msg.visibility = View.GONE
         spin.visibility = View.VISIBLE
         val lighter = !variant && mono() < lighterUntil
+        val capped = !variant && App.max
         val keepVariants = variants
         bg {
             val r0 = Db.one("live", id) ?: return@bg
             val vars = if (variant) keepVariants else try { Db.variants(r0) } catch (_: Exception) { emptyList() }
             var r = r0
             var startReduced = false
+            var startCapped = false
             if (lighter) {
                 val q = r0.l("q").toInt()
                 val hv = r0.l("hevc") == 1L
                 vars.filter { it.q < q && (!it.hevc || hv) }.maxByOrNull { it.q }?.let { v -> Db.one("live", v.id)?.let { r = it; startReduced = true } }
+            }
+            // «Leggerissima»: se il canale ha anche la versione HD (non HEVC) si parte da quella invece di FHD / 4K
+            if (!startReduced && capped && r0.l("q") >= 3L) {
+                vars.firstOrNull { it.q == 2 && !it.hevc }?.let { v -> Db.one("live", v.id)?.let { r = it; startCapped = true } }
             }
             val list = Play.liveUrls(r)
             Vpns.awaitForced()
@@ -660,9 +666,9 @@ class PlayerActivity : BaseActivity() {
                 if (!variant) {
                     baseRow = r0
                     variants = vars
-                    reduced = startReduced
-                    reducedAt = if (startReduced) mono() else 0L
-                    stayReduced = false
+                    reduced = startReduced || startCapped
+                    reducedAt = if (reduced) mono() else 0L
+                    stayReduced = startCapped // scelta dell'utente: non si torna da soli alla versione piena
                     tryingFull = false
                     stalls.clear()
                     progs = emptyList()

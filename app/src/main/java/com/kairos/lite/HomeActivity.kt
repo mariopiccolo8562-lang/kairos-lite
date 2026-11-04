@@ -18,7 +18,7 @@ class HomeActivity : BaseActivity() {
     private lateinit var sync: TextView
     private lateinit var recentBox: View
     private val recent = RecentAdapter()
-    private var wasRunning = false
+    private var phaseWas = Sync.phase
     private val syncL: () -> Unit = { showSync() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -107,13 +107,13 @@ class HomeActivity : BaseActivity() {
     }
 
     private fun showSync() {
+        // canali pronti prima di film e serie: i numeri si aggiornano a ogni parte
+        if (Sync.phase != phaseWas) { phaseWas = Sync.phase; counts() }
         if (Sync.running) {
-            wasRunning = true
             sync.visibility = View.VISIBLE
             sync.text = "Aggiornamento delle liste… ${Sync.pct}%"
             return
         }
-        if (wasRunning) { wasRunning = false; counts() }
         if (Sync.error.isNotEmpty()) {
             sync.visibility = View.VISIBLE
             sync.text = "Liste non aggiornate: ${Sync.error}. Riprova da Impostazioni → Aggiorna liste."

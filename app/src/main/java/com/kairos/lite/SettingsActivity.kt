@@ -97,7 +97,7 @@ class SettingsActivity : BaseActivity() {
         syncSub = row(R.drawable.ic_refresh, "Aggiorna liste", syncText(), "") { Sync.force(); build() }
         val prevVal = when (Store.preview) { "on" -> "Sempre"; "off" -> "Mai"; else -> if (App.lite) "Automatica (spenta)" else "Automatica (accesa)" }
         row(R.drawable.ic_tv, "Anteprima video nella lista canali", "Il canale selezionato parte nel riquadro. Pesa sulle chiavette vecchie", prevVal) { choosePreview() }
-        val liteVal = when (Store.liteMode) { "on" -> "Sempre"; "off" -> "Mai"; else -> "Automatica" }
+        val liteVal = when (Store.liteMode) { "on" -> "Sempre"; "max" -> "Leggerissima"; "off" -> "Mai"; else -> "Automatica" }
         row(R.drawable.ic_bolt, "Modalità leggera", "Per chiavette e TV vecchie: niente animazioni né anteprima video", liteVal) { chooseLite() }
         row(R.drawable.ic_refresh, "Aggiornamenti dell'app", "Versione installata " + BuildConfig.VERSION_NAME, "") {
             Ui.toast("Controllo…")
@@ -150,12 +150,20 @@ class SettingsActivity : BaseActivity() {
     }
 
     private fun chooseLite() {
-        val opts = arrayOf("Automatica (consigliata)", "Sempre attiva", "Mai")
-        val keys = arrayOf("auto", "on", "off")
+        val opts = arrayOf("Automatica (consigliata)", "Sempre attiva", "Leggerissima: liste senza loghi, canali in HD", "Mai")
+        val keys = arrayOf("auto", "on", "max", "off")
         Ui.choose(this, "Modalità leggera", opts, keys.indexOf(Store.liteMode).coerceAtLeast(0)) { i ->
+            val wasMax = App.max
             Store.liteMode = keys[i]
             App.lite = App.I.detectLite()
-            Ui.toast(if (App.lite) "Modalità leggera attiva" else "Modalità leggera spenta")
+            App.max = Store.liteMode == "max"
+            Ui.toast(when {
+                App.max -> "Leggerissima attiva"
+                App.lite -> "Modalità leggera attiva"
+                else -> "Modalità leggera spenta"
+            })
+            // la memoria per le immagini si sceglie all'avvio: con «Leggerissima» si avvisa di riaprire l'app
+            if (App.max != wasMax) Ui.dialog(this, "Modalità leggera", "Per liberare tutta la memoria chiudi e riapri Kairos Lite.")
             build()
         }
     }

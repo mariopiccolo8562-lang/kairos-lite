@@ -29,10 +29,12 @@ class VodActivity : BaseActivity() {
     private var favSet: Set<String> = emptySet()
     private var seq = 0
     private var loadedSig = ""
-    private var syncWas = Sync.running
+    private var verWas = -1
+    /** appena film (o serie) sono ricaricati si rilegge, senza aspettare il resto */
     private val syncL: () -> Unit = {
-        if (syncWas && !Sync.running && !isFinishing) loadCats(refresh = true)
-        syncWas = Sync.running
+        val v = Sync.ver(table)
+        if (verWas >= 0 && v != verWas && !isFinishing) loadCats(refresh = true)
+        verWas = v
     }
     private var posterW = 0
     private var posterH = 0
@@ -81,6 +83,7 @@ class VodActivity : BaseActivity() {
         })
         query.setOnEditorActionListener { _, _, _ -> grid.requestFocus(); false }
         favSet = Store.favs(table)
+        verWas = Sync.ver(table)
         Sync.listen(syncL)
         loadCats()
     }
@@ -199,7 +202,8 @@ class VodActivity : BaseActivity() {
             val year = c.getString(10) ?: ""
             val rating = (c.getString(9) ?: "").toDoubleOrNull()?.takeIf { it > 0 }
             h.meta.text = listOfNotNull(year.ifEmpty { null }, rating?.let { "★ " + String.format(java.util.Locale.ITALY, "%.1f", if (it > 10) it / 10 else it) }).joinToString(" · ")
-            Ui.img(h.img, c.getString(5), posterW, posterH)
+            // «Leggerissima»: locandine decodificate più piccole (un terzo della memoria in meno)
+            if (App.max) Ui.img(h.img, c.getString(5), posterW * 2 / 3, posterH * 2 / 3) else Ui.img(h.img, c.getString(5), posterW, posterH)
         }
     }
 }

@@ -31,14 +31,15 @@ class App : Application() {
         Store.init(this)
         Db.init(this)
         lite = detectLite()
+        max = Store.liteMode == "max"
         // immagini: memoria e spazio su disco limitati (le chiavette hanno 1 GB di RAM e poco spazio)
         try {
-            val mem = if (lite) 6L shl 20 else 20L shl 20
+            val mem = if (max) 4L shl 20 else if (lite) 6L shl 20 else 20L shl 20
             Glide.init(this, GlideBuilder()
                 .setMemoryCache(LruResourceCache(mem))
                 .setBitmapPool(LruBitmapPool(mem / 2))
                 // cartella predefinita di Glide: la cache della 1.0 (fino a 250 MB) viene ridotta, non lasciata lì
-                .setDiskCache(InternalCacheDiskCacheFactory(this, if (lite) 40L shl 20 else 120L shl 20))
+                .setDiskCache(InternalCacheDiskCacheFactory(this, if (max) 25L shl 20 else if (lite) 40L shl 20 else 120L shl 20))
                 .setDefaultRequestOptions(RequestOptions().format(if (lite) DecodeFormat.PREFER_RGB_565 else DecodeFormat.PREFER_ARGB_8888))
                 .setLogLevel(android.util.Log.ERROR))
         } catch (_: Throwable) {}
@@ -70,7 +71,7 @@ class App : Application() {
     }
 
     fun detectLite(): Boolean = when (Store.liteMode) {
-        "on" -> true
+        "on", "max" -> true
         "off" -> false
         else -> autoLite()
     }
@@ -88,6 +89,8 @@ class App : Application() {
     companion object {
         lateinit var I: App
         @Volatile var lite = false
+        /** «Leggerissima»: per le chiavette più vecchie (liste senza loghi, immagini più piccole, canali in HD) */
+        @Volatile var max = false
         val main = Handler(Looper.getMainLooper())
         val io: ExecutorService = Executors.newFixedThreadPool(3) { r -> Thread(r, "kl-io").apply { isDaemon = true } }
         var started = 0

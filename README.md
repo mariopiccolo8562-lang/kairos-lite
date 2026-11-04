@@ -10,6 +10,8 @@ Si installa **accanto** a KAIROS TV e usa lo **stesso pannello Kairos**: stessi 
 - Film e serie con stagioni ed episodi, posizione di visione salvata, episodio successivo automatico.
 - Ricerca unica, preferiti, profili (anche bambini).
 - **Modalità leggera** automatica sulle chiavette con meno di ~1,8 GB di RAM: niente animazioni né anteprima video, immagini e buffer più piccoli.
+- **Leggerissima** (Impostazioni → Modalità leggera) per le chiavette più datate: liste canali senza loghi, locandine più piccole, niente sfondo nelle schede, canali nella versione HD quando c'è.
+- **Liste a tappe**: prima i canali (TV subito usabile), poi film e serie.
 - Liste salvate in un archivio sul dispositivo e lette a pezzi: veloce anche con 100.000 titoli.
 
 Dal pannello funzionano: attivazione e scadenza, playlist M3U/Xtream (unite o separate), cambio DNS, *Disconnetti*, limite di visioni contemporanee, permessi, profili, collegamento di altre TV con codice a 6 cifre, messaggi, VPN (*Consentita* / *Sempre attiva*), *Errori applicazione*. In *Utenti online* la versione compare come `lite 1.0.0`.

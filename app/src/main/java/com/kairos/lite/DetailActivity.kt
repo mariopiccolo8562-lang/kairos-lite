@@ -100,7 +100,7 @@ class DetailActivity : BaseActivity() {
     }
 
     private fun setBackdrop(url: String) {
-        if (url.isEmpty() || url == backdrop) return
+        if (url.isEmpty() || url == backdrop || App.max) return // «Leggerissima»: basta la locandina
         backdrop = url
         val iv = findViewById<ImageView>(R.id.backdrop)
         val w = if (App.lite) 640 else 1280

@@ -58,6 +58,20 @@ object Db {
         listOf("cat", "live", "vod", "series").forEach { db.execSQL("DELETE FROM $it WHERE pl = ?", a) }
     }
 
+    /** toglie una parte (live / vod / series) di una playlist prima di ricaricarla */
+    fun dropKind(db: SQLiteDatabase, pl: String, kind: String) {
+        val a = arrayOf(pl)
+        db.execSQL("DELETE FROM cat WHERE pl = ? AND kind = ?", arrayOf(pl, kind))
+        when (kind) {
+            "live" -> db.execSQL("DELETE FROM live WHERE pl = ?", a)
+            "vod" -> db.execSQL("DELETE FROM vod WHERE pl = ?", a)
+            else -> {
+                db.execSQL("DELETE FROM ep WHERE series IN (SELECT _id FROM series WHERE pl = ?)", a)
+                db.execSQL("DELETE FROM series WHERE pl = ?", a)
+            }
+        }
+    }
+
     /** toglie le playlist che non sono più in uso */
     fun dropOthers(db: SQLiteDatabase, keep: List<String>) {
         if (keep.isEmpty()) { clear(db); return }

@@ -60,9 +60,18 @@ object Sync {
         exec.execute { run(pls) }
     }
 
+    /** sale ogni volta che una parte delle liste è pronta (prima i canali, poi film e serie) */
+    @Volatile var phase = 0
+        private set
+    private val vers = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    /** sale quando [kind] (live / vod / series) è stato ricaricato: quella schermata si rilegge subito */
+    fun ver(kind: String): Int = vers[kind] ?: 0
+    private fun bump(kind: String) { vers[kind] = ver(kind) + 1 }
+
     /**
-     * Una transazione per playlist: se una non risponde restano i suoi dati di prima
-     * e le altre si aggiornano lo stesso.
+     * Prima i canali di tutte le playlist, poi i film, poi le serie: la TV in diretta si può usare
+     * dopo pochi secondi anche sulle chiavette lente. Una transazione per parte e per playlist:
+     * se una non risponde restano i suoi dati di prima e le altre si aggiornano lo stesso.
      */
     private fun run(pls: List<Playlist>) {
         val errors = ArrayList<String>()
@@ -76,22 +85,33 @@ object Sync {
                 Db.dropOthers(db, keep)
                 db.setTransactionSuccessful()
             } finally { db.endTransaction() }
-            pls.forEachIndexed { i, p ->
-                val from = i * 100 / pls.size
-                val span = 100 / pls.size
+            val parts = listOf("live", "vod", "series")
+            // le M3U si leggono in una volta sola (canali, film e serie sono nello stesso file)
+            val jobs = ArrayList<Pair<Int, String>>()
+            for (part in parts) pls.forEachIndexed { i, p -> if (p.isXtream || part == "live") jobs.add(i to part) }
+            val failed = HashSet<String>()
+            jobs.forEachIndexed { n, (i, part) ->
+                val p = pls[i]
+                if (failed.contains(p.id)) return@forEachIndexed // server che non risponde: non si insiste
+                val from = n * 100 / jobs.size
+                val span = 100 / jobs.size
                 val step = { v: Int -> setPct(from + v * span / 100) }
                 db.beginTransactionNonExclusive()
                 try {
-                    Db.dropPlaylist(db, p.id)
-                    val st = Stmts(db, i * 1_000_000L)
-                    if (p.isXtream) xtream(p, st, step) else m3u(p, st, step)
+                    if (p.isXtream) Db.dropKind(db, p.id, part) else Db.dropPlaylist(db, p.id)
+                    val st = Stmts(db, i * 1_000_000L + parts.indexOf(part) * 300_000L)
+                    if (p.isXtream) xtream(p, st, part, step) else m3u(p, st, step)
                     db.setTransactionSuccessful()
                     if (!p.isXtream) Store.setPlOrigin(p.id, p.origin())
                 } catch (t: Throwable) {
+                    failed.add(p.id)
                     errors.add((if (pls.size > 1) p.name + ": " else "") + (t.message ?: t.javaClass.simpleName))
                 } finally {
                     db.endTransaction()
                 }
+                if (p.isXtream) bump(part) else parts.forEach { bump(it) }
+                phase++
+                emit(true)
             }
             if (errors.isEmpty()) {
                 Store.syncSig = sig(pls)
@@ -105,6 +125,7 @@ object Sync {
         } finally {
             running = false
             pct = 100
+            phase++
             emit(true)
         }
     }
@@ -148,21 +169,21 @@ object Sync {
     private fun adult(s: String) = RX_ADULT.containsMatchIn(s)
 
     /* ---------------- Xtream Codes ---------------- */
-    private fun xtream(p: Playlist, st: Stmts, step: (Int) -> Unit) {
+    /** una parte ([kind]: live / vod / series) di una playlist Xtream: le sue categorie e i suoi contenuti */
+    private fun xtream(p: Playlist, st: Stmts, kind: String, step: (Int) -> Unit) {
         val known = HashMap<String, Boolean>() // categoria → per adulti
-        for ((kind, action) in listOf("live" to "get_live_categories", "vod" to "get_vod_categories", "series" to "get_series_categories")) {
-            eachObject(p.api(action) ?: continue) { o ->
-                val id = o["category_id"] ?: return@eachObject
-                val name = (o["category_name"] ?: "").trim().ifEmpty { "Altro" }
-                val key = p.id + ":" + kind + ":" + id
-                if (known.containsKey(key)) return@eachObject
-                val ad = adult(name)
-                known[key] = ad
-                st.addCat(kind, key, name, p.id, ad)
-            }
+        val catAction = when (kind) { "live" -> "get_live_categories"; "vod" -> "get_vod_categories"; else -> "get_series_categories" }
+        eachObject(p.api(catAction) ?: return) { o ->
+            val id = o["category_id"] ?: return@eachObject
+            val name = (o["category_name"] ?: "").trim().ifEmpty { "Altro" }
+            val key = p.id + ":" + kind + ":" + id
+            if (known.containsKey(key)) return@eachObject
+            val ad = adult(name)
+            known[key] = ad
+            st.addCat(kind, key, name, p.id, ad)
         }
-        step(6)
-        fun catOf(kind: String, id: String?): Pair<String, Boolean> {
+        step(10)
+        fun catOf(id: String?): Pair<String, Boolean> {
             val key = p.id + ":" + kind + ":" + (id ?: "")
             val ad = known[key]
             if (ad != null) return key to ad
@@ -170,47 +191,49 @@ object Sync {
             st.addCat(kind, key, "Altro", p.id, false)
             return key to false
         }
-
-        var n = 0L
-        eachObject(p.api("get_live_streams") ?: return) { o ->
-            val sid = o["stream_id"] ?: return@eachObject
-            val name = (o["name"] ?: "").trim()
-            val (cat, ad) = catOf("live", o["category_id"])
-            n++
-            val s = st.live
-            s.clearBindings()
-            s.bindString(1, p.id + ":" + sid); s.bindString(2, p.id); s.bindString(3, cat)
-            s.bindLong(4, o["num"]?.toDoubleOrNull()?.toLong() ?: n); s.bindString(5, name); s.s(6, o["stream_icon"])
-            s.bindString(7, sid); s.bindNull(8); s.s(9, o["epg_channel_id"]); s.bindLong(10, if (ad || adult(name)) 1 else 0)
-            st.quality(name)
-            s.executeInsert()
-        }
-        step(30)
-        eachObject(p.api("get_vod_streams") ?: return) { o ->
-            val sid = o["stream_id"] ?: return@eachObject
-            val name = (o["name"] ?: "").trim()
-            val (cat, ad) = catOf("vod", o["category_id"])
-            val s = st.vod
-            s.clearBindings()
-            s.bindString(1, p.id + ":" + sid); s.bindString(2, p.id); s.bindString(3, cat); s.bindString(4, name)
-            s.s(5, o["stream_icon"]); s.bindString(6, sid); s.s(7, o["container_extension"]); s.bindNull(8)
-            s.s(9, o["rating"]); s.s(10, yearOf(o["year"] ?: o["releasedate"] ?: o["release_date"], name))
-            s.bindLong(11, o["added"]?.toDoubleOrNull()?.toLong() ?: 0); s.bindLong(12, if (ad || adult(name)) 1 else 0)
-            s.executeInsert()
-        }
-        step(70)
-        eachObject(p.api("get_series") ?: return) { o ->
-            val sid = o["series_id"] ?: return@eachObject
-            val name = (o["name"] ?: "").trim()
-            val (cat, ad) = catOf("series", o["category_id"])
-            val s = st.series
-            s.clearBindings()
-            s.bindString(1, p.id + ":s" + sid); s.bindString(2, p.id); s.bindString(3, cat); s.bindString(4, name)
-            s.s(5, o["cover"]); s.bindString(6, sid); s.bindNull(7); s.bindNull(8)
-            s.s(9, o["rating"]); s.s(10, yearOf(o["releaseDate"] ?: o["release_date"] ?: o["year"], name))
-            s.bindLong(11, o["last_modified"]?.toDoubleOrNull()?.toLong() ?: 0); s.bindLong(12, if (ad || adult(name)) 1 else 0)
-            s.s(13, o["plot"]?.take(600))
-            s.executeInsert()
+        when (kind) {
+            "live" -> {
+                var n = 0L
+                eachObject(p.api("get_live_streams") ?: return) { o ->
+                    val sid = o["stream_id"] ?: return@eachObject
+                    val name = (o["name"] ?: "").trim()
+                    val (cat, ad) = catOf(o["category_id"])
+                    n++
+                    val s = st.live
+                    s.clearBindings()
+                    s.bindString(1, p.id + ":" + sid); s.bindString(2, p.id); s.bindString(3, cat)
+                    s.bindLong(4, o["num"]?.toDoubleOrNull()?.toLong() ?: n); s.bindString(5, name); s.s(6, o["stream_icon"])
+                    s.bindString(7, sid); s.bindNull(8); s.s(9, o["epg_channel_id"]); s.bindLong(10, if (ad || adult(name)) 1 else 0)
+                    st.quality(name)
+                    s.executeInsert()
+                }
+            }
+            "vod" -> eachObject(p.api("get_vod_streams") ?: return) { o ->
+                val sid = o["stream_id"] ?: return@eachObject
+                val name = (o["name"] ?: "").trim()
+                val (cat, ad) = catOf(o["category_id"])
+                val s = st.vod
+                s.clearBindings()
+                s.bindString(1, p.id + ":" + sid); s.bindString(2, p.id); s.bindString(3, cat); s.bindString(4, name)
+                s.s(5, o["stream_icon"]); s.bindString(6, sid); s.s(7, o["container_extension"]); s.bindNull(8)
+                s.s(9, o["rating"]); s.s(10, yearOf(o["year"] ?: o["releasedate"] ?: o["release_date"], name))
+                s.bindLong(11, o["added"]?.toDoubleOrNull()?.toLong() ?: 0); s.bindLong(12, if (ad || adult(name)) 1 else 0)
+                s.executeInsert()
+            }
+            else -> eachObject(p.api("get_series") ?: return) { o ->
+                val sid = o["series_id"] ?: return@eachObject
+                val name = (o["name"] ?: "").trim()
+                val (cat, ad) = catOf(o["category_id"])
+                val s = st.series
+                s.clearBindings()
+                s.bindString(1, p.id + ":s" + sid); s.bindString(2, p.id); s.bindString(3, cat); s.bindString(4, name)
+                s.s(5, o["cover"]); s.bindString(6, sid); s.bindNull(7); s.bindNull(8)
+                s.s(9, o["rating"]); s.s(10, yearOf(o["releaseDate"] ?: o["release_date"] ?: o["year"], name))
+                s.bindLong(11, o["last_modified"]?.toDoubleOrNull()?.toLong() ?: 0); s.bindLong(12, if (ad || adult(name)) 1 else 0)
+                // la trama arriva comunque aprendo la scheda: in modalità leggera non occupa spazio
+                if (App.lite) s.bindNull(13) else s.s(13, o["plot"]?.take(600))
+                s.executeInsert()
+            }
         }
         step(100)
     }

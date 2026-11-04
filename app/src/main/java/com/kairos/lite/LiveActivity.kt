@@ -49,11 +49,12 @@ class LiveActivity : BaseActivity() {
     private var favSet: Set<String> = emptySet()
     private var seq = 0
     private var loadedSig = ""
-    private var syncWas = Sync.running
-    /** a fine aggiornamento delle liste si rilegge tutto, restando sul canale selezionato */
+    private var verWas = Sync.ver("live")
+    /** appena i canali sono ricaricati (film e serie arrivano dopo) si rilegge, restando sul canale selezionato */
     private val syncL: () -> Unit = {
-        if (syncWas && !Sync.running && !isFinishing) { curRow?.let { restoreId = it.l("_id") }; loadCats(refresh = true) }
-        syncWas = Sync.running
+        val v = Sync.ver("live")
+        if (v != verWas && !isFinishing) { curRow?.let { restoreId = it.l("_id") }; loadCats(refresh = true) }
+        verWas = v
     }
 
     private var player: ExoPlayer? = null
@@ -382,7 +383,7 @@ class LiveActivity : BaseActivity() {
             h.name.text = name
             h.initials.text = Ui.initials(name)
             val size = Ui.dp(h.itemView.context, 38)
-            Ui.img(h.logo, logo, size, size)
+            Ui.img(h.logo, if (App.max) null else logo, size, size) // «Leggerissima»: solo iniziali, niente immagini da scaricare
             val k = c.getString(1) ?: ""
             h.fav.visibility = if (favSet.contains(k)) View.VISIBLE else View.GONE
             val p = K.pl(c.getString(2) ?: "")

@@ -70,6 +70,8 @@ object Players {
         selector.setParameters(selector.buildUponParameters().setViewportSizeToPhysicalDisplaySize(ctx, true).setPreferredAudioLanguage("it"))
         // anteprima: nei canali HLS con più qualità si prende la più bassa adatta al riquadro
         if (preview) selector.setParameters(selector.buildUponParameters().setMaxVideoSize(960, 540).setMaxVideoBitrate(3_000_000))
+        // «Leggerissima»: con i flussi a più qualità si resta a 720p, il decoder delle chiavette vecchie respira
+        else if (App.max) selector.setParameters(selector.buildUponParameters().setMaxVideoSize(1280, 720))
         val p = ExoPlayer.Builder(ctx, renderers)
             .setBandwidthMeter(meter)
             .setTrackSelector(selector)
