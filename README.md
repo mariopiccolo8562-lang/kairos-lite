@@ -6,11 +6,12 @@ Si installa **accanto** a KAIROS TV e usa lo **stesso pannello Kairos**: stessi 
 ## Cosa fa
 
 - Home con tre riquadri (TV in diretta, Film, Serie TV) e «Continua a guardare».
-- TV in diretta a tre colonne (categorie · canali · anteprima con guida adesso/dopo), cambio canale con ▲▼ e con i numeri.
+- TV in diretta a tre colonne (categorie · canali · anteprima con guida adesso/dopo): **OK una volta** il canale parte nel riquadro, **OK di nuovo** si apre a schermo intero; cambio canale con ▲▼ e con i numeri.
 - Film e serie con stagioni ed episodi, posizione di visione salvata, episodio successivo automatico.
 - Ricerca unica, preferiti, profili (anche bambini).
-- **Modalità leggera** automatica sulle chiavette con meno di ~1,8 GB di RAM: niente animazioni né anteprima video, immagini e buffer più piccoli.
+- **Modalità leggera** automatica sulle chiavette con meno di ~1,8 GB di RAM: niente animazioni, immagini e buffer più piccoli.
 - **Leggerissima** (Impostazioni → Modalità leggera) per le chiavette più datate: liste canali senza loghi, locandine più piccole, niente sfondo nelle schede, canali nella versione HD quando c'è.
+- **Aggiornamenti automatici**: a ogni apertura (e ogni ora) l'app controlla le release e propone da sola la versione nuova.
 - **Liste a tappe**: prima i canali (TV subito usabile), poi film e serie.
 - Liste salvate in un archivio sul dispositivo e lette a pezzi: veloce anche con 100.000 titoli.
 

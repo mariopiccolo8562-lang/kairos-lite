@@ -26,6 +26,7 @@ object Pulse {
         override fun run() {
             if (!on) return
             beat(false)
+            Updater.maybeCheck()
             App.main.postDelayed(this, 20_000)
         }
     }
@@ -35,7 +36,7 @@ object Pulse {
         App.main.removeCallbacks(tick)
         if (fg) {
             App.main.postDelayed(tick, 4_000)
-            Updater.maybeCheck()
+            Updater.onForeground()
         } else {
             watching = null
         }

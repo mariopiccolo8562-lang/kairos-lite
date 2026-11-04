@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -21,17 +22,36 @@ import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Aggiornamento automatico: il pannello indica l'ultima versione di Kairos Lite
- * (/api/player/update?app=lite, release «kairos-lite» dello store). Controllo all'avvio e ogni 3 ore.
+ * Aggiornamento automatico dalle release di GitHub (kairos-lite.json).
+ * Si controlla a ogni apertura dell'app (al massimo ogni 10 minuti) e ogni ora mentre resta aperta;
+ * l'avviso compare da solo appena si è in un menu (mai sopra la visione) e, con «Più tardi»,
+ * torna alla prossima apertura.
  */
 object Updater {
-    private val busy = AtomicBoolean(false)
-    @Volatile private var offered = 0
+    class Upd(val code: Int, val ver: String, val url: String)
 
-    fun maybeCheck() {
-        if (System.currentTimeMillis() - Store.updAt < 3 * 3600_000L) return
-        Store.updAt = System.currentTimeMillis()
-        bg { check(null) }
+    private val busy = AtomicBoolean(false)
+    private val checking = AtomicBoolean(false)
+    /** versione nuova trovata e non ancora installata */
+    @Volatile var pending: Upd? = null
+        private set
+    /** già proposta in questa apertura dell'app */
+    @Volatile private var askedCode = 0
+    @Volatile private var lastCheck = 0L
+
+    /** l'app torna in primo piano: nuovo controllo e, se c'è già una versione nuova, la si propone di nuovo */
+    fun onForeground() {
+        askedCode = 0
+        maybeCheck(10 * 60_000L)
+    }
+
+    /** chiamato anche dal battito ogni 20 s: il controllo vero parte solo ogni [gap] */
+    fun maybeCheck(gap: Long = 60 * 60_000L) {
+        val now = SystemClock.elapsedRealtime()
+        if (lastCheck != 0L && now - lastCheck < gap) return
+        if (!checking.compareAndSet(false, true)) return
+        lastCheck = now
+        bg { try { check(null) } finally { checking.set(false) } }
     }
 
     /** [manual] = schermata da cui l'utente ha chiesto il controllo (riceve anche «nessun aggiornamento») */
@@ -41,18 +61,29 @@ object Updater {
         val url = apk?.optString("url", "") ?: ""
         val ver = apk?.optString("version", "") ?: ""
         if (code > BuildConfig.VERSION_CODE && url.startsWith("https://")) {
-            if (manual == null && offered == code) return
-            offered = code
-            ui { prompt(manual ?: App.top, ver, url) }
-        } else if (manual != null) {
-            ui { Ui.toast(if (apk == null) "Impossibile controllare gli aggiornamenti adesso" else "Hai già l'ultima versione (${BuildConfig.VERSION_NAME})") }
+            val u = Upd(code, ver, url)
+            pending = u
+            ui { if (manual != null) prompt(manual, u) else offer(App.top) }
+        } else {
+            if (apk != null) pending = null
+            else if (manual == null) lastCheck = SystemClock.elapsedRealtime() - 55 * 60_000L // rete giù: si riprova tra 5 minuti
+            if (manual != null) ui { Ui.toast(if (apk == null) "Impossibile controllare gli aggiornamenti adesso" else "Hai già l'ultima versione (${BuildConfig.VERSION_NAME})") }
         }
     }
 
-    private fun prompt(a: Activity?, ver: String, url: String) {
+    /** propone la versione nuova (una volta per apertura) appena si è in un menu; ogni schermata la chiama all'apertura */
+    fun offer(a: Activity?) {
+        val u = pending ?: return
         if (a == null || a.isFinishing || a is PlayerActivity) return
-        Ui.dialog(a, "Nuova versione disponibile", "È pronta la versione $ver di ${a.getString(R.string.app_name)}. L'aggiornamento richiede meno di un minuto.", "Aggiorna ora", "Più tardi") {
-            download(a, url)
+        if (askedCode == u.code || busy.get()) return
+        askedCode = u.code
+        prompt(a, u)
+    }
+
+    private fun prompt(a: Activity, u: Upd) {
+        if (a.isFinishing) return
+        Ui.dialog(a, "Nuova versione disponibile", "È pronta la versione ${u.ver} di ${a.getString(R.string.app_name)}. L'aggiornamento richiede meno di un minuto.", "Aggiorna ora", "Più tardi") {
+            download(a, u.url)
         }
     }
 

@@ -20,7 +20,8 @@ import androidx.recyclerview.widget.RecyclerView
 
 /**
  * TV in diretta, tre colonne: categorie · canali · anteprima con guida (adesso / dopo).
- * In modalità leggera l'anteprima mostra solo logo e guida (nessun secondo video in memoria).
+ * Scorrendo si vedono logo e guida; OK una volta fa partire il canale nel riquadro,
+ * OK di nuovo apre lo schermo intero (il riquadro si chiude prima: un solo video alla volta).
  */
 class LiveActivity : BaseActivity() {
     private lateinit var cats: RecyclerView
@@ -28,6 +29,8 @@ class LiveActivity : BaseActivity() {
     private lateinit var empty: TextView
     private lateinit var catName: TextView
     private lateinit var pvideo: FrameLayout
+    private lateinit var pspin: ProgressBar
+    private lateinit var phint: TextView
     private lateinit var plogo: ImageView
     private lateinit var pch: TextView
     private lateinit var nowTitle: TextView
@@ -62,7 +65,9 @@ class LiveActivity : BaseActivity() {
 
     private val loadCatR = Runnable { loadChannels() }
     private val previewR = Runnable { updatePreview() }
-    private val videoR = Runnable { startVideo() }
+    /** canale partito nel riquadro: il prossimo OK su di lui apre lo schermo intero */
+    private var previewId = 0L
+    private var videoSeq = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +78,8 @@ class LiveActivity : BaseActivity() {
         empty = findViewById(R.id.empty)
         catName = findViewById(R.id.catName)
         pvideo = findViewById(R.id.pvideo)
+        pspin = findViewById(R.id.pspin)
+        phint = findViewById(R.id.phint)
         plogo = findViewById(R.id.plogo)
         pch = findViewById(R.id.pch)
         nowTitle = findViewById(R.id.nowTitle)
@@ -84,6 +91,7 @@ class LiveActivity : BaseActivity() {
         next = findViewById(R.id.next)
         favBtn = findViewById(R.id.fav)
         findViewById<View>(R.id.pbox).clipToOutline = true
+        findViewById<View>(R.id.pbox).setOnClickListener { onChannelClick(curPos) } // telefoni: tocco sul riquadro
 
         findViewById<View>(R.id.back).setOnClickListener { finish() }
         findViewById<View>(R.id.search).setOnClickListener { open(SearchActivity::class.java) }
@@ -125,7 +133,6 @@ class LiveActivity : BaseActivity() {
         Sync.unlisten(syncL)
         App.main.removeCallbacks(loadCatR)
         App.main.removeCallbacks(previewR)
-        App.main.removeCallbacks(videoR)
         releaseVideo()
         chAdapter.swap(null)
     }
@@ -217,13 +224,33 @@ class LiveActivity : BaseActivity() {
         stopVideo()
         App.main.removeCallbacks(previewR)
         App.main.postDelayed(previewR, 180)
-        App.main.removeCallbacks(videoR)
-        if (previewOn()) App.main.postDelayed(videoR, if (App.lite) 1_300L else 900L)
     }
+
+    /** OK sul canale: la prima volta parte nel riquadro, la seconda si apre a schermo intero */
+    private fun onChannelClick(pos: Int) {
+        val c = chAdapter.cursor ?: return
+        if (pos < 0 || c.isClosed || !c.moveToPosition(pos)) return
+        val id = c.getLong(0)
+        if (!previewOn() || (previewId > 0 && id == previewId)) { play(pos); return }
+        if (pos != curPos || curRow == null) onChannelFocus(pos) // al tocco (telefoni) il canale non prende il focus
+        startVideo()
+    }
+
+    private fun key() = if (channels.isInTouchMode) "Tocca" else "OK"
+
+    private fun hint(t: String?) {
+        if (t == null) { phint.visibility = View.GONE; return }
+        phint.text = t
+        phint.visibility = View.VISIBLE
+    }
+
+    /** suggerimento nel riquadro quando il video non è partito */
+    private fun idleHint() = hint(if (previewOn() && curRow != null) key() + " · anteprima" else null)
 
     private fun updatePreview() {
         val r = curRow ?: return
         val name = r.s("name")
+        if (previewId == 0L) idleHint()
         pch.text = (if (r.l("num") > 0) r.l("num").toString() + " · " else "") + name
         Ui.img(plogo, r.s("logo"), Ui.dp(this, 72), Ui.dp(this, 72))
         favBtn.setImageResource(if (favSet.contains(r.s("k"))) R.drawable.ic_heart_fill else R.drawable.ic_heart)
@@ -259,42 +286,63 @@ class LiveActivity : BaseActivity() {
         if (n != null) { next.visibility = View.VISIBLE; next.text = "DOPO   " + Ui.hm(n.start) + "   " + n.title }
     }
 
-    /* ---------------- anteprima video (solo dispositivi non leggeri) ---------------- */
-    /**
-     * Anteprima video: automatica solo sui dispositivi non leggeri, oppure come scelta il cliente.
-     * Mai con un limite di visioni contemporanee (l'anteprima conterebbe come una visione).
-     */
-    private fun previewOn(): Boolean {
-        if ((Panel.state?.account?.maxStreams ?: 0) > 0) return false
-        return when (Store.preview) { "on" -> true; "off" -> false; else -> !App.lite }
-    }
+    /* ---------------- anteprima nel riquadro (al primo OK) ---------------- */
+    /** il video parte solo quando il cliente lo chiede: scorrere la lista resta leggero anche sulle chiavette vecchie */
+    private fun previewOn(): Boolean = Store.preview != "off"
 
     private fun startVideo() {
         if (!previewOn() || isFinishing) return
         val r = curRow ?: return
-        val url = Play.liveUrls(r).firstOrNull() ?: return
-        val p = player ?: Players.build(this, true, preview = true).also { pl ->
-            player = pl
-            val v = PlayerView(this)
-            v.useController = false
-            v.setShutterBackgroundColor(0)
-            pvideo.addView(v, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            v.player = pl
-            pview = v
-            pl.addListener(object : Player.Listener {
-                override fun onPlayerError(error: PlaybackException) { stopVideo() }
-            })
+        val url = Play.liveUrls(r).firstOrNull() ?: run { play(curPos); return }
+        val id = r.l("_id")
+        previewId = id
+        val my = ++videoSeq
+        pspin.visibility = View.VISIBLE
+        hint(key() + " · schermo intero")
+        bg {
+            Vpns.awaitForced() // VPN «sempre attiva»: anche l'anteprima passa dalla VPN
+            // limite di visioni contemporanee del pannello: l'anteprima è una visione come le altre
+            val block = Panel.stream("live", r.s("name"))
+            ui {
+                if (isFinishing || my != videoSeq || previewId != id) return@ui
+                if (block != null) { previewId = 0; pspin.visibility = View.GONE; idleHint(); Ui.toast(block); return@ui }
+                val p = player ?: Players.build(this, true, preview = true).also { pl ->
+                    player = pl
+                    val v = PlayerView(this)
+                    v.useController = false
+                    v.setShutterBackgroundColor(0)
+                    pvideo.addView(v, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                    v.player = pl
+                    pview = v
+                    pl.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(state: Int) {
+                            if (previewId == 0L) return
+                            pspin.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                        }
+                        // il riquadro non insiste: lo schermo intero ha il recupero automatico completo
+                        override fun onPlayerError(error: PlaybackException) {
+                            try { pl.stop() } catch (_: Exception) {}
+                            pview?.visibility = View.INVISIBLE
+                            pspin.visibility = View.GONE
+                            hint("Anteprima non disponibile · " + key() + ": schermo intero")
+                        }
+                    })
+                }
+                pview?.visibility = View.VISIBLE
+                p.setMediaItem(Players.item(url))
+                p.prepare()
+                p.playWhenReady = true
+            }
         }
-        pview?.visibility = View.VISIBLE
-        p.setMediaItem(Players.item(url))
-        p.prepare()
-        p.playWhenReady = true
     }
 
     private fun stopVideo() {
-        App.main.removeCallbacks(videoR)
+        videoSeq++
+        previewId = 0
         player?.let { try { it.stop(); it.clearMediaItems() } catch (_: Exception) {} }
         pview?.visibility = View.INVISIBLE
+        pspin.visibility = View.GONE
+        idleHint()
     }
 
     private fun releaseVideo() {
@@ -367,7 +415,7 @@ class LiveActivity : BaseActivity() {
         override fun onCreateViewHolder(p: ViewGroup, t: Int): H {
             val h = H(LayoutInflater.from(p.context).inflate(R.layout.item_channel, p, false))
             h.itemView.setOnFocusChangeListener { _, has -> if (has) onChannelFocus(h.bindingAdapterPosition) }
-            h.itemView.setOnClickListener { play(h.bindingAdapterPosition) }
+            h.itemView.setOnClickListener { onChannelClick(h.bindingAdapterPosition) }
             h.itemView.setOnLongClickListener { toggleFav(h.bindingAdapterPosition); true }
             h.itemView.setOnKeyListener { _, code, e ->
                 if (code == KeyEvent.KEYCODE_MENU && e.action == KeyEvent.ACTION_UP) { toggleFav(h.bindingAdapterPosition); true } else false

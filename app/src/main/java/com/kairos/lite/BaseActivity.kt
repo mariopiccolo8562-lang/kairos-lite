@@ -34,6 +34,7 @@ abstract class BaseActivity : Activity() {
             Vpns.apply(this)
         }
         if (clockView != null) { App.main.removeCallbacks(clockTick); clockTick.run() }
+        Updater.offer(this) // versione nuova trovata mentre si guardava un canale: la si propone qui
     }
 
     override fun onPause() {

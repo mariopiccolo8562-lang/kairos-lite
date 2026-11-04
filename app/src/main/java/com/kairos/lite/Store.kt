@@ -50,10 +50,10 @@ object Store {
     var liteMode: String
         get() = s("liteMode", "auto")
         set(v) = put("liteMode", v)
-    /** anteprima video nella lista canali: auto (solo dispositivi non leggeri) | on | off */
+    /** anteprima nella lista canali: click (primo OK = riquadro, secondo OK = schermo intero) | off */
     var preview: String
-        get() = s("preview", "auto")
-        set(v) = put("preview", v)
+        get() = s("previewMode", "click")
+        set(v) = put("previewMode", v)
     var plChoice: String
         get() = s("plChoice")
         set(v) = put("plChoice", v)
@@ -63,9 +63,6 @@ object Store {
     var syncAt: Long
         get() = p.getLong("syncAt", 0)
         set(v) = p.edit().putLong("syncAt", v).apply()
-    var updAt: Long
-        get() = p.getLong("updAt", 0)
-        set(v) = p.edit().putLong("updAt", v).apply()
     var kickSeen: Long
         get() = p.getLong("kickSeen", 0)
         set(v) = p.edit().putLong("kickSeen", v).apply()

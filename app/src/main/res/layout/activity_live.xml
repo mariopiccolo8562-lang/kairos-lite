@@ -103,6 +103,28 @@
                     android:id="@+id/pvideo"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent" />
+                <ProgressBar
+                    android:id="@+id/pspin"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="@color/accent"
+                    android:visibility="gone" />
+                <TextView
+                    android:id="@+id/phint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp"
+                    android:layout_gravity="top|right"
+                    android:layout_margin="10dp"
+                    android:background="@drawable/bg_badge"
+                    android:gravity="center"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="10dp"
+                    android:singleLine="true"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="24dp"

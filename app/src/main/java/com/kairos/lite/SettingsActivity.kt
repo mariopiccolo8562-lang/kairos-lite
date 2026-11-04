@@ -95,13 +95,14 @@ class SettingsActivity : BaseActivity() {
         }
         wasRunning = Sync.running
         syncSub = row(R.drawable.ic_refresh, "Aggiorna liste", syncText(), "") { Sync.force(); build() }
-        val prevVal = when (Store.preview) { "on" -> "Sempre"; "off" -> "Mai"; else -> if (App.lite) "Automatica (spenta)" else "Automatica (accesa)" }
-        row(R.drawable.ic_tv, "Anteprima video nella lista canali", "Il canale selezionato parte nel riquadro. Pesa sulle chiavette vecchie", prevVal) { choosePreview() }
+        val prevVal = if (Store.preview == "off") "Spenta" else "Al primo OK"
+        row(R.drawable.ic_tv, "Anteprima nella lista canali", "OK una volta: il canale parte nel riquadro · OK di nuovo: schermo intero", prevVal) { choosePreview() }
         val liteVal = when (Store.liteMode) { "on" -> "Sempre"; "max" -> "Leggerissima"; "off" -> "Mai"; else -> "Automatica" }
-        row(R.drawable.ic_bolt, "Modalità leggera", "Per chiavette e TV vecchie: niente animazioni né anteprima video", liteVal) { chooseLite() }
-        row(R.drawable.ic_refresh, "Aggiornamenti dell'app", "Versione installata " + BuildConfig.VERSION_NAME, "") {
-            Ui.toast("Controllo…")
-            bg { Updater.check(this) }
+        row(R.drawable.ic_bolt, "Modalità leggera", "Per chiavette e TV vecchie: niente animazioni, immagini e memoria ridotte", liteVal) { chooseLite() }
+        val upd = Updater.pending
+        row(R.drawable.ic_refresh, "Aggiornamenti dell'app", "Versione installata " + BuildConfig.VERSION_NAME + (if (upd != null) " · pronta la " + upd.ver else ""), if (upd != null) "Aggiorna" else "") {
+            if (upd != null) Updater.download(this, upd.url)
+            else { Ui.toast("Controllo…"); bg { Updater.check(this) } }
         }
         row(R.drawable.ic_info, "Privacy e condizioni", "Informativa del tuo fornitore", "") {
             bg { val t = Panel.privacyText(); ui { Ui.dialog(this, "Privacy e condizioni", t.ifEmpty { "Nessuna informativa disponibile." }) } }
@@ -141,9 +142,9 @@ class SettingsActivity : BaseActivity() {
     }
 
     private fun choosePreview() {
-        val opts = arrayOf("Automatica (consigliata)", "Sempre attiva", "Mai")
-        val keys = arrayOf("auto", "on", "off")
-        Ui.choose(this, "Anteprima video", opts, keys.indexOf(Store.preview).coerceAtLeast(0)) { i ->
+        val opts = arrayOf("Al primo OK (consigliata): il secondo OK apre lo schermo intero", "Spenta: OK apre subito lo schermo intero")
+        val keys = arrayOf("click", "off")
+        Ui.choose(this, "Anteprima nella lista canali", opts, if (Store.preview == "off") 1 else 0) { i ->
             Store.preview = keys[i]
             build()
         }
