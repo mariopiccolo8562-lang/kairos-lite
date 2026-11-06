@@ -302,19 +302,23 @@ class LiveActivity : BaseActivity() {
     private fun startVideo() {
         if (!previewOn() || isFinishing) return
         val r = curRow ?: return
-        val url = Play.liveUrls(r).firstOrNull() ?: run { play(curPos); return }
+        val full = Play.liveUrls(r).firstOrNull() ?: run { play(curPos); return }
         val id = r.l("_id")
         previewId = id
+        Players.previewing = true // niente lavori di fondo (liste, APK) finché il riquadro va
         val my = ++videoSeq
         pspin.visibility = View.VISIBLE
         hint(key() + " · schermo intero")
         bg {
+            // sempre la versione più leggera dello stesso canale, se la playlist ne ha (niente HEVC: pesa di più da decodificare)
+            val light = try { Db.variants(r).filter { !it.hevc && it.q < Quality.rank(r.s("name")) }.minByOrNull { it.q } } catch (_: Exception) { null }
+            val url = light?.let { Db.one("live", it.id) }?.let { Play.liveUrls(it).firstOrNull() } ?: full
             Vpns.awaitForced() // VPN «sempre attiva»: anche l'anteprima passa dalla VPN
             // limite di visioni contemporanee del pannello: l'anteprima è una visione come le altre
             val block = Panel.stream("live", r.s("name"))
             ui {
                 if (isFinishing || my != videoSeq || previewId != id) return@ui
-                if (block != null) { previewId = 0; pspin.visibility = View.GONE; idleHint(); Ui.toast(block); return@ui }
+                if (block != null) { previewId = 0; Players.previewing = false; pspin.visibility = View.GONE; idleHint(); Ui.toast(block); return@ui }
                 val p = player ?: Players.build(this, true, preview = true).also { pl ->
                     player = pl
                     val v = PlayerView(this)
@@ -331,6 +335,7 @@ class LiveActivity : BaseActivity() {
                         // il riquadro non insiste: lo schermo intero ha il recupero automatico completo
                         override fun onPlayerError(error: PlaybackException) {
                             try { pl.stop() } catch (_: Exception) {}
+                            Players.previewing = false
                             pview?.visibility = View.INVISIBLE
                             pspin.visibility = View.GONE
                             hint("Anteprima non disponibile · " + key() + ": schermo intero")
@@ -348,6 +353,7 @@ class LiveActivity : BaseActivity() {
     private fun stopVideo() {
         videoSeq++
         previewId = 0
+        Players.previewing = false
         player?.let { try { it.stop(); it.clearMediaItems() } catch (_: Exception) {} }
         pview?.visibility = View.INVISIBLE
         pspin.visibility = View.GONE
