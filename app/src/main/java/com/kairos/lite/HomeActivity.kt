@@ -42,6 +42,7 @@ class HomeActivity : BaseActivity() {
         findViewById<View>(R.id.account).setOnClickListener { open(SettingsActivity::class.java) }
         findViewById<View>(R.id.settings).setOnClickListener { open(SettingsActivity::class.java) }
         findViewById<View>(R.id.search).setOnClickListener { open(SearchActivity::class.java) }
+        vpnShield(findViewById(R.id.vpnShield))
 
         val rv = findViewById<RecyclerView>(R.id.recent)
         rv.fast(horizontal = true)
