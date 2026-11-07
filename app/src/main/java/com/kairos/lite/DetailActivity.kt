@@ -1,6 +1,8 @@
 package com.kairos.lite
 
 import android.os.Bundle
+import android.util.JsonReader
+import android.util.JsonToken
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,6 +14,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.InputStreamReader
 
 /** Scheda di un film o di una serie (stagioni ed episodi) */
 class DetailActivity : BaseActivity() {
@@ -140,31 +143,18 @@ class DetailActivity : BaseActivity() {
             loading.text = "Caricamento episodi…"
             val url = p.api("get_series_info", "&series_id=" + r.s("sid")) ?: return
             net {
-                val j = try { JSONObject(Http.text(url, connectMs = 12_000, readMs = 30_000).text) } catch (_: Exception) { null }
-                val list = ArrayList<Ep>()
-                val eps = j?.optJSONObject("episodes")
-                if (eps != null) {
-                    val it = eps.keys()
-                    while (it.hasNext()) {
-                        val sk = it.next()
-                        val arr = eps.optJSONArray(sk) ?: continue
-                        for (i in 0 until arr.length()) {
-                            val o = arr.optJSONObject(i) ?: continue
-                            val inf = o.optJSONObject("info")
-                            list.add(Ep(o.optString("id"), o.optString("season", sk).toIntOrNull() ?: sk.toIntOrNull() ?: 1, o.optString("episode_num").toIntOrNull() ?: (i + 1),
-                                o.optString("title"), o.optString("container_extension"), "", inf?.optString("movie_image") ?: "", if (inf != null) durText(inf) else ""))
-                        }
-                    }
-                }
-                val info = j?.optJSONObject("info")
+                // letta a flusso: anche con migliaia di episodi in memoria resta l'elenco, non tutto il testo della risposta
+                val si = try { SeriesJson.load(url) } catch (_: Exception) { null }
+                val list = si?.eps ?: emptyList()
+                val info = si?.info
                 ui {
                     if (isFinishing) return@ui
                     loading.visibility = View.GONE
                     if (info != null) {
-                        val plot = info.optString("plot")
+                        val plot = info["plot"] ?: ""
                         if (plot.isNotEmpty()) findViewById<TextView>(R.id.plot).text = plot
-                        meta(r.s("year").ifEmpty { info.optString("releaseDate").take(4) }, info.optString("rating").ifEmpty { r.s("rating") }, info.optString("genre"), "")
-                        setBackdrop(first(info.opt("backdrop_path")))
+                        meta(r.s("year").ifEmpty { (info["releaseDate"] ?: "").take(4) }, (info["rating"] ?: "").ifEmpty { r.s("rating") }, info["genre"] ?: "", "")
+                        setBackdrop(info["backdrop_path"] ?: "")
                     }
                     setEpisodes(list.sortedWith(compareBy({ it.season }, { it.num })))
                 }
@@ -177,12 +167,7 @@ class DetailActivity : BaseActivity() {
         }
     }
 
-    private fun durText(o: JSONObject): String {
-        val secs = o.optString("duration_secs").toLongOrNull() ?: 0
-        if (secs > 0) return Ui.minutes(secs * 1000)
-        val d = o.optString("duration")
-        return if (d.length >= 5 && d[2] == ':') { val h = d.substring(0, 2).toIntOrNull() ?: 0; val m = d.substring(3, 5).toIntOrNull() ?: 0; Ui.minutes((h * 60L + m) * 60_000) } else ""
-    }
+    private fun durText(o: JSONObject): String = durOf(o.optString("duration_secs"), o.optString("duration"))
 
     private fun first(v: Any?): String = when (v) {
         is JSONArray -> if (v.length() > 0) v.optString(0) else ""
@@ -314,5 +299,154 @@ class DetailActivity : BaseActivity() {
             val w = resources.getDimensionPixelSize(R.dimen.ep_w)
             Ui.img(h.img, e.img.ifEmpty { backdrop.ifEmpty { poster } }, w, w * 9 / 16)
         }
+    }
+}
+
+/** durata di un film o di un episodio: dai secondi, altrimenti da «hh:mm:ss» */
+private fun durOf(secsText: String, d: String): String {
+    val secs = secsText.toLongOrNull() ?: 0
+    if (secs > 0) return Ui.minutes(secs * 1000)
+    return if (d.length >= 5 && d[2] == ':') { val h = d.substring(0, 2).toIntOrNull() ?: 0; val m = d.substring(3, 5).toIntOrNull() ?: 0; Ui.minutes((h * 60L + m) * 60_000) } else ""
+}
+
+/**
+ * get_series_info letto a flusso (JsonReader): le serie con migliaia di episodi non passano più da tutto il testo della
+ * risposta e dall'albero JSONObject (decine di MB per le soap più lunghe, troppi per le chiavette da 1 GB). Si tengono solo i
+ * campi usati, con gli stessi valori di optString / optJSONObject sul JSON intero: null diventa «null», una chiave ripetuta
+ * vale con l'ultimo valore, una risposta che non è un oggetto JSON valido non dà né scheda né episodi.
+ */
+private object SeriesJson {
+    class Result(val info: Map<String, String>?, val eps: List<DetailActivity.Ep>)
+
+    fun load(url: String): Result {
+        val c = Http.open(url, connectMs = 12_000, readMs = 30_000)
+        try {
+            val r = JsonReader(InputStreamReader(Http.stream(c), Charsets.UTF_8))
+            r.isLenient = true
+            try { return read(r) } finally { try { r.close() } catch (_: Exception) {} }
+        } finally {
+            c.disconnect()
+        }
+    }
+
+    private fun read(r: JsonReader): Result {
+        if (r.peek() != JsonToken.BEGIN_OBJECT) throw IllegalStateException("risposta non valida")
+        var info: Map<String, String>? = null
+        var seasons: LinkedHashMap<String, List<DetailActivity.Ep>>? = null
+        r.beginObject()
+        while (r.hasNext()) {
+            when (r.nextName()) {
+                "info" -> info = if (r.peek() == JsonToken.BEGIN_OBJECT) readInfo(r) else { r.skipValue(); null }
+                "episodes" -> seasons = if (r.peek() == JsonToken.BEGIN_OBJECT) readSeasons(r) else { r.skipValue(); null }
+                else -> r.skipValue()
+            }
+        }
+        r.endObject()
+        return Result(info, seasons?.values?.flatten() ?: emptyList())
+    }
+
+    /** scheda della serie: trama, data, voto, genere e primo sfondo */
+    private fun readInfo(r: JsonReader): Map<String, String> {
+        val m = HashMap<String, String>()
+        r.beginObject()
+        while (r.hasNext()) {
+            when (val k = r.nextName()) {
+                "plot", "releaseDate", "rating", "genre" -> m[k] = str(r)
+                "backdrop_path" -> m[k] = first(r)
+                else -> r.skipValue()
+            }
+        }
+        r.endObject()
+        return m
+    }
+
+    /** stagioni nell'ordine della risposta; come JSONObject una chiave ripetuta resta al primo posto con l'ultimo valore */
+    private fun readSeasons(r: JsonReader): LinkedHashMap<String, List<DetailActivity.Ep>> {
+        val out = LinkedHashMap<String, List<DetailActivity.Ep>>()
+        r.beginObject()
+        while (r.hasNext()) {
+            val sk = r.nextName()
+            out[sk] = if (r.peek() == JsonToken.BEGIN_ARRAY) readEpisodes(r, sk) else { r.skipValue(); emptyList() }
+        }
+        r.endObject()
+        return out
+    }
+
+    private fun readEpisodes(r: JsonReader, sk: String): List<DetailActivity.Ep> {
+        val out = ArrayList<DetailActivity.Ep>()
+        var i = 0 // posizione nella lista (anche degli elementi che non sono episodi): numero di riserva dell'episodio
+        r.beginArray()
+        while (r.hasNext()) {
+            if (r.peek() == JsonToken.BEGIN_OBJECT) out.add(readEpisode(r, sk, i)) else r.skipValue()
+            i++
+        }
+        r.endArray()
+        return out
+    }
+
+    private fun readEpisode(r: JsonReader, sk: String, i: Int): DetailActivity.Ep {
+        var id = ""
+        var season: String? = null
+        var num = ""
+        var title = ""
+        var ext = ""
+        var img = ""
+        var dur = ""
+        r.beginObject()
+        while (r.hasNext()) {
+            when (r.nextName()) {
+                "id" -> id = str(r)
+                "season" -> season = str(r)
+                "episode_num" -> num = str(r)
+                "title" -> title = str(r)
+                "container_extension" -> ext = str(r)
+                // di «info» servono immagine e durata: trama, codec audio e video e il resto si saltano
+                "info" -> if (r.peek() == JsonToken.BEGIN_OBJECT) {
+                    var im = ""
+                    var secs = ""
+                    var d = ""
+                    r.beginObject()
+                    while (r.hasNext()) {
+                        when (r.nextName()) {
+                            "movie_image" -> im = str(r)
+                            "duration_secs" -> secs = str(r)
+                            "duration" -> d = str(r)
+                            else -> r.skipValue()
+                        }
+                    }
+                    r.endObject()
+                    img = im
+                    dur = durOf(secs, d)
+                } else {
+                    r.skipValue()
+                    img = ""
+                    dur = ""
+                }
+                else -> r.skipValue()
+            }
+        }
+        r.endObject()
+        return DetailActivity.Ep(id, (season ?: sk).toIntOrNull() ?: sk.toIntOrNull() ?: 1, num.toIntOrNull() ?: (i + 1), title, ext, "", img, dur)
+    }
+
+    /** come optString: testo e numeri come sono scritti, vero / falso, null diventa «null»; liste e oggetti "" */
+    private fun str(r: JsonReader): String = when (r.peek()) {
+        JsonToken.STRING, JsonToken.NUMBER -> r.nextString()
+        JsonToken.BOOLEAN -> r.nextBoolean().toString()
+        JsonToken.NULL -> { r.nextNull(); "null" }
+        else -> { r.skipValue(); "" }
+    }
+
+    /** come first(opt(…)): di una lista il primo elemento (come optString(0)), un testo così com'è, altro "" */
+    private fun first(r: JsonReader): String = when (r.peek()) {
+        JsonToken.STRING -> r.nextString()
+        JsonToken.BEGIN_ARRAY -> {
+            r.beginArray()
+            val v = if (r.hasNext()) str(r) else ""
+            while (r.hasNext()) r.skipValue()
+            r.endArray()
+            v
+        }
+        else -> { r.skipValue(); "" }
     }
 }
