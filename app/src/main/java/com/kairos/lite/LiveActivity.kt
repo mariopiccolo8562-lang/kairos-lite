@@ -326,7 +326,8 @@ class LiveActivity : BaseActivity() {
                 if (block != null) { previewId = 0; Players.previewing = false; pspin.visibility = View.GONE; idleHint(); Ui.toast(block); return@ui }
                 val p = player ?: Players.build(this, true, preview = true).also { pl ->
                     player = pl
-                    val v = PlayerView(this)
+                    // PlayerView con l'interno leggero (senza i comandi di media3, che qui non si vedono mai)
+                    val v = layoutInflater.inflate(R.layout.preview_video, pvideo, false) as PlayerView
                     v.useController = false
                     v.setShutterBackgroundColor(0)
                     pvideo.addView(v, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))

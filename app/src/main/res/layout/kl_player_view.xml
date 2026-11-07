@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Interno di PlayerView: come exo_player_view di media3 ma senza il segnaposto dei comandi. L'app non mostra mai i comandi
+     di media3 (use_controller spento, comandi propri): senza segnaposto PlayerView non costruisce PlayerControlView
+     (decine di viste, icone, finestra delle impostazioni e animazioni) a ogni apertura del lettore e dell'anteprima.
+     Rotellina di caricamento e messaggio d'errore di media3 non servono: restano sempre nascosti. -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <androidx.media3.ui.AspectRatioFrameLayout
+        android:id="@id/exo_content_frame"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center">
+
+        <!-- la superficie del video si inserisce qui come primo elemento -->
+
+        <View
+            android:id="@id/exo_shutter"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@android:color/black" />
+
+        <ImageView
+            android:id="@id/exo_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+
+        <ImageView
+            android:id="@id/exo_artwork"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+
+        <androidx.media3.ui.SubtitleView
+            android:id="@id/exo_subtitles"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </androidx.media3.ui.AspectRatioFrameLayout>
+
+    <FrameLayout
+        android:id="@id/exo_ad_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <FrameLayout
+        android:id="@id/exo_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</merge>
