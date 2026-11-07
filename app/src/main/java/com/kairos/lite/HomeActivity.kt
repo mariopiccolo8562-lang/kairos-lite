@@ -171,6 +171,8 @@ class HomeActivity : BaseActivity() {
             return h
         }
 
+        override fun onViewRecycled(h: H) { Ui.unload(h.img) }
+
         override fun onBindViewHolder(h: H, i: Int) {
             val o = items[i]
             val title = o.optString("title")

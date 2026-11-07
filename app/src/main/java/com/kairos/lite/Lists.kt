@@ -40,20 +40,29 @@ abstract class CursorAdapter<VH : RecyclerView.ViewHolder> : RecyclerView.Adapte
     abstract fun bind(h: VH, c: Cursor, position: Int)
 }
 
+/** righe staccate che il RecyclerView tiene pronte per tornare indietro senza ricostruirle */
+private fun viewCacheSize() = if (App.lite) 6 else 14
+
 /** liste veloci: niente animazioni, cache di viste, dimensione fissa */
 fun RecyclerView.fast(horizontal: Boolean = false) {
     itemAnimator = null
     setHasFixedSize(true)
-    setItemViewCacheSize(if (App.lite) 6 else 14)
+    setItemViewCacheSize(viewCacheSize())
     if (layoutManager == null) layoutManager = LinearLayoutManager(context, if (horizontal) RecyclerView.HORIZONTAL else RecyclerView.VERTICAL, false)
-    // tasto tenuto premuto: si scorre senza caricare le immagini, che arrivano appena ci si ferma
+    // tasto tenuto premuto: sui dispositivi deboli si scorre senza caricare le immagini, che arrivano appena ci si ferma
     addOnScrollListener(object : RecyclerView.OnScrollListener() {
         override fun onScrollStateChanged(rv: RecyclerView, state: Int) {
             try {
-                if (state == RecyclerView.SCROLL_STATE_IDLE) Glide.with(rv).resumeRequests() else if (App.lite) Glide.with(rv).pauseRequests()
+                if (state == RecyclerView.SCROLL_STATE_IDLE) Glide.with(rv).resumeRequests() else if (Ui.weak()) Glide.with(rv).pauseRequests()
             } catch (_: Exception) {}
         }
     })
+}
+
+/** le righe staccate tenute pronte passano al riciclo, dove onViewRecycled toglie le loro immagini */
+fun RecyclerView.dropViewCache() {
+    setItemViewCacheSize(0)
+    setItemViewCacheSize(viewCacheSize())
 }
 
 /** colonna delle categorie (Diretta, Film, Serie) */

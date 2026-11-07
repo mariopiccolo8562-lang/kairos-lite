@@ -46,6 +46,9 @@ class SearchActivity : BaseActivity() {
         App.main.removeCallbacks(searchR)
     }
 
+    /** di ritorno dal lettore: le immagini dei risultati si rimettono */
+    override fun reloadImages() { adapter.notifyDataSetChanged() }
+
     private fun search() {
         val t = query.text.toString()
         val my = ++seq
@@ -86,6 +89,7 @@ class SearchActivity : BaseActivity() {
             h.itemView.setOnClickListener { val i = h.bindingAdapterPosition; if (i in items.indices) openHit(items[i]) }
             return h
         }
+        override fun onViewRecycled(h: H) { Ui.unload(h.img) }
         override fun onBindViewHolder(h: H, i: Int) {
             val x = items[i]
             h.name.text = x.name

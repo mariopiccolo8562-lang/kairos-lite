@@ -14,6 +14,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.RequestBuilder
 import com.bumptech.glide.load.DecodeFormat
@@ -122,6 +123,26 @@ object Ui {
         var rq = Glide.with(v).load(url).override(w, h).dontAnimate().diskCacheStrategy(DiskCacheStrategy.ALL)
         if (weak()) rq = rq.format(DecodeFormat.PREFER_RGB_565)
         return rq
+    }
+
+    /**
+     * Toglie da [v] l'immagine caricata con Glide: la richiesta in corso si annulla e la bitmap torna alla cache di Glide.
+     * Serve perché con le Activity del framework Glide non segue la vita delle schermate (usa quello dell'applicazione).
+     */
+    fun unload(v: ImageView) {
+        try { Glide.with(App.I).clear(v) } catch (_: Throwable) {}
+    }
+
+    /** [unload] per tutte le immagini sotto [v]; i RecyclerView lasciano andare anche le righe staccate tenute pronte */
+    fun unloadAll(v: View?) {
+        when (v) {
+            null -> {}
+            is ImageView -> unload(v)
+            is ViewGroup -> {
+                if (v is RecyclerView) v.dropViewCache()
+                for (i in 0 until v.childCount) unloadAll(v.getChildAt(i))
+            }
+        }
     }
 
     /**

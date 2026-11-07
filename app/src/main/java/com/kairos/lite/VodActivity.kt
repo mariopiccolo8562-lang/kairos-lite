@@ -105,6 +105,9 @@ class VodActivity : BaseActivity() {
 
     override fun onStateChanged() { if (sig() != loadedSig) loadCats(refresh = true) }
 
+    /** di ritorno dal lettore: le locandine tolte si rimettono (id stabili: la lista e il cursore restano dove sono) */
+    override fun reloadImages() { posters.notifyDataSetChanged() }
+
     private fun loadCats(refresh: Boolean = false) {
         loadedSig = sig()
         val pls = K.activeIds()
@@ -203,6 +206,9 @@ class VodActivity : BaseActivity() {
             Ui.zoom(h.itemView, 1.06f)
             return h
         }
+
+        // locandina uscita dallo schermo: niente più scaricamento, la bitmap torna alla cache
+        override fun onViewRecycled(h: H) { Ui.unload(h.img) }
 
         // colonne: _id, k, pl, cat, name, img, sid, ext, url, rating, year
         override fun bind(h: H, c: Cursor, position: Int) {

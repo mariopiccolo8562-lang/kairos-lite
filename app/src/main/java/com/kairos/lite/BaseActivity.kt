@@ -60,10 +60,43 @@ abstract class BaseActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        screens.add(this)
         // dopo una chiusura forzata di Android (poca memoria) si riparte dall'ultimo stato salvato
         if (Panel.state == null) Panel.loadCached()
         if (App.lite) overridePendingTransition(0, 0)
     }
+
+    override fun onStart() {
+        super.onStart()
+        // di ritorno dal lettore: le immagini tolte si ricaricano (dalla cache su disco)
+        if (imagesOff) { imagesOff = false; reloadImages() }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // il lettore è salito sopra: le schermate sotto non tengono locandine e sfondi, il buffer video ha più memoria
+        if (this !is PlayerActivity && App.top is PlayerActivity) freeForPlayer()
+    }
+
+    override fun onDestroy() {
+        screens.remove(this)
+        // le immagini della schermata tornano alla cache di Glide e le richieste ancora in corso si annullano
+        Ui.unloadAll(window.peekDecorView())
+        super.onDestroy()
+    }
+
+    /** immagini tolte con [freeImages]: al ritorno [reloadImages] */
+    private var imagesOff = false
+
+    /** toglie dalle viste le immagini di Glide (anche dalle righe staccate dei RecyclerView): la schermata non è visibile */
+    open fun freeImages() {
+        if (imagesOff || isFinishing) return
+        imagesOff = true
+        Ui.unloadAll(window.peekDecorView())
+    }
+
+    /** la schermata torna visibile dopo [freeImages]: rimette le sue immagini (le liste che si rileggono in onResume lo fanno già) */
+    open fun reloadImages() {}
 
     override fun onResume() {
         super.onResume()
@@ -127,5 +160,16 @@ abstract class BaseActivity : Activity() {
         val i = Intent(this, c)
         fill?.invoke(i)
         startActivity(i)
+    }
+
+    companion object {
+        /** schermate aperte, dalla creazione alla chiusura (solo thread principale) */
+        private val screens = LinkedHashSet<BaseActivity>()
+
+        /** entrando nel lettore: via le immagini dalle schermate sotto e dalla cache in memoria, così il video ha spazio */
+        fun freeForPlayer() {
+            for (a in screens.toList()) if (a !is PlayerActivity) try { a.freeImages() } catch (_: Exception) {}
+            Ui.clearMemory()
+        }
     }
 }

@@ -102,9 +102,19 @@ class DetailActivity : BaseActivity() {
     private fun setBackdrop(url: String) {
         if (url.isEmpty() || url == backdrop || App.max) return // «Leggerissima»: basta la locandina
         backdrop = url
-        val iv = findViewById<ImageView>(R.id.backdrop)
+        showBackdrop()
+    }
+
+    private fun showBackdrop() {
         val w = if (App.lite) 640 else 1280
-        Ui.img(iv, url, w, w * 9 / 16)
+        Ui.img(findViewById(R.id.backdrop), backdrop, w, w * 9 / 16)
+    }
+
+    /** di ritorno dal lettore: locandina e sfondo tolti per far spazio al video si rimettono (gli episodi in onResume) */
+    override fun reloadImages() {
+        if (row == null) return
+        Ui.img(findViewById(R.id.poster), poster, resources.getDimensionPixelSize(R.dimen.poster_w), resources.getDimensionPixelSize(R.dimen.poster_h))
+        if (backdrop.isNotEmpty()) showBackdrop()
     }
 
     /* ---------------- dati dal server ---------------- */
@@ -291,6 +301,7 @@ class DetailActivity : BaseActivity() {
             Ui.zoom(h.itemView, 1.05f)
             return h
         }
+        override fun onViewRecycled(h: H) { Ui.unload(h.img) }
         override fun onBindViewHolder(h: H, i: Int) {
             val e = items[i]
             h.tag.text = "E" + e.num

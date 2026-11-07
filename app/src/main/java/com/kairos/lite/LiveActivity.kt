@@ -125,6 +125,9 @@ class LiveActivity : BaseActivity() {
     /** con la Home decisa dal fornitore (primo piano / nascoste): se il pannello la cambia, le categorie si riordinano */
     private fun sig() = K.activeIds().joinToString(",") + "|" + K.kids + "|" + HomeCfg.key()
 
+    /** entrando nel lettore i loghi (piccoli) restano: tornando indietro la lista è subito completa */
+    override fun freeImages() {}
+
     override fun onPause() {
         super.onPause()
         stopVideo()
@@ -439,6 +442,9 @@ class LiveActivity : BaseActivity() {
             }
             return h
         }
+
+        // riga uscita dallo schermo: il logo non si scarica più e la sua bitmap torna alla cache
+        override fun onViewRecycled(h: H) { Ui.unload(h.logo) }
 
         override fun bind(h: H, c: Cursor, position: Int) {
             val num = c.getLong(4)
