@@ -88,7 +88,8 @@ class VodActivity : BaseActivity() {
         loadCats()
     }
 
-    private fun sig() = K.activeIds().joinToString(",") + "|" + K.kids
+    /** con la Home decisa dal fornitore (primo piano / nascoste): se il pannello la cambia, le categorie si riordinano */
+    private fun sig() = K.activeIds().joinToString(",") + "|" + K.kids + "|" + HomeCfg.key()
 
     override fun onResume() {
         super.onResume()
@@ -110,7 +111,8 @@ class VodActivity : BaseActivity() {
         val kids = K.kids
         val favs = Store.favs(table)
         bg {
-            val list = Db.cats(table, pls, kids)
+            // in cima quelle in primo piano, in fondo quelle nascoste dal fornitore
+            val list = HomeCfg.order(Db.cats(table, pls, kids)) { it.name }
             val total = Db.count(table, pls, kids)
             ui {
                 if (isFinishing) return@ui
