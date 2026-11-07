@@ -1,0 +1,21 @@
+# Profilo di base (Baseline Profile), installato da androidx.profileinstaller: Android compila queste classi in codice
+# macchina in anticipo (in background, dopo l'installazione o l'aggiornamento), così l'apertura, le liste e il primo canale
+# non partono interpretando il codice. Su Android 5-6 tutto è già compilato all'installazione: lì non cambia niente.
+# Caratteri jolly: ** = qualsiasi nome, anche nei sottopacchetti.
+# Kairos Lite intera (è piccola)
+HSPLcom/kairos/lite/**;->**(**)**
+Lcom/kairos/lite/**;
+# liste e immagini: Home, canali, locandine
+HSPLandroidx/recyclerview/widget/**;->**(**)**
+Landroidx/recyclerview/widget/**;
+HSPLcom/bumptech/glide/**;->**(**)**
+Lcom/bumptech/glide/**;
+HSPLandroidx/core/**;->**(**)**
+Landroidx/core/**;
+# lettore (media3 / ExoPlayer, HLS, TS, superficie, sottotitoli): il primo canale dopo l'apertura parte con il codice già
+# compilato; il codice compilato in anticipo sta in memoria «pulita» (Android la libera da sola) invece che nella cache del JIT
+HSPLandroidx/media3/**;->**(**)**
+Landroidx/media3/**;
+# Kotlin (raccolte, testi, espressioni regolari): usato da tutta l'app
+HSPLkotlin/**;->**(**)**
+Lkotlin/**;
