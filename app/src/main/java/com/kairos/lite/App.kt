@@ -5,6 +5,7 @@ import android.app.ActivityManager
 import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -67,8 +68,11 @@ class App : Application() {
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
         // memoria che scarseggia (o app in sfondo): via tutta la cache delle immagini in memoria, poi si rilegge dal disco
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) Ui.clearMemory()
-        else try { Glide.get(this).trimMemory(level) } catch (_: Throwable) {}
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            Ui.clearMemory()
+            // pagine dell'archivio che SQLite tiene in memoria (fino a qualche MB): si rileggono dal disco quando servono
+            try { SQLiteDatabase.releaseMemory() } catch (_: Throwable) {}
+        } else try { Glide.get(this).trimMemory(level) } catch (_: Throwable) {}
     }
 
     override fun onLowMemory() {
