@@ -40,13 +40,30 @@ object Http {
             if (body == null && code in 300..399 && hops < 6) {
                 val loc = c.getHeaderField("Location")
                 if (loc != null) {
-                    c.disconnect()
+                    release(c)
                     target = URL(target, loc)
                     hops++
                     continue
                 }
             }
             return c
+        }
+    }
+
+    /**
+     * Fine di un reindirizzamento: il corpo (di solito poche centinaia di byte) si legge fino in fondo e si chiude, così la
+     * connessione resta aperta nel gruppo di quelle riusabili e il passo successivo verso lo stesso server non rifà collegamento
+     * e TLS (disconnect() la chiudeva sempre). Corpo troppo lungo o errore: si chiude come prima.
+     */
+    private fun release(c: HttpURLConnection) {
+        try {
+            val s = c.inputStream
+            val buf = ByteArray(4096)
+            var n = 0L
+            while (n < 64 * 1024) { val k = s.read(buf); if (k < 0) break; n += k }
+            if (n >= 64 * 1024) c.disconnect() else s.close()
+        } catch (_: Exception) {
+            try { c.disconnect() } catch (_: Exception) {}
         }
     }
 
