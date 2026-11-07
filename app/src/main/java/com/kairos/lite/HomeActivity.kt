@@ -180,7 +180,7 @@ class HomeActivity : BaseActivity() {
             val pos = o.optLong("pos")
             h.bar.progress = if (dur > 0) (pos * 100 / dur).toInt() else 0
             h.left.text = if (dur > 0) Ui.minutes(dur - pos) else ""
-            Ui.img(h.img, o.optString("img"), Ui.dp(h.itemView.context, 168), Ui.dp(h.itemView.context, 80))
+            Ui.img(h.img, o.optString("img"), resources.getDimensionPixelSize(R.dimen.recent_w), resources.getDimensionPixelSize(R.dimen.recent_h))
         }
     }
 }

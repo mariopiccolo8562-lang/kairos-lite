@@ -3,6 +3,7 @@ package com.kairos.lite
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.view.Gravity
@@ -14,6 +15,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import com.bumptech.glide.Glide
+import com.bumptech.glide.RequestBuilder
 import com.bumptech.glide.load.DecodeFormat
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import java.text.SimpleDateFormat
@@ -81,16 +83,62 @@ object Ui {
         t.text = initials(name)
     }
 
-    /** immagine ridimensionata alla misura mostrata; a 16 bit in modalità leggera (metà memoria) */
+    /** dispositivo debole: modalità leggera oppure classe D di Kairos Adaptive (immagini a 16 bit, misure TMDB più piccole) */
+    fun weak(): Boolean = App.lite || Line.device() == "D"
+
+    private val TMDB = Regex("^(https?://image\\.tmdb\\.org/t/p/)(original|w(\\d+)[^/]*)(/.+)$")
+
+    /**
+     * Locandine e sfondi di TMDB (image.tmdb.org/t/p/<misura>/…): si chiede la misura più piccola adatta alla vista invece
+     * dell'originale (locandine w185 / w342 / w500, sfondi w780 / w1280; sui dispositivi deboli locandine w185 e sfondi w780),
+     * mai più grande di quella indicata nell'indirizzo. Gli altri indirizzi restano come sono.
+     */
+    fun tmdb(url: String, w: Int, h: Int): String {
+        val m = TMDB.find(url) ?: return url
+        val cur = m.groupValues[3].toIntOrNull() ?: Int.MAX_VALUE // «original»
+        val weak = weak()
+        val want = if (w > h) (if (weak || w <= 780) 780 else 1280) else (if (weak || w <= 185) 185 else if (w <= 342) 342 else 500)
+        if (cur <= want) return url
+        return m.groupValues[1] + "w" + want + m.groupValues[4]
+    }
+
+    /**
+     * Immagine decodificata alla misura mostrata (mai all'originale), a 16 bit sui dispositivi deboli (metà memoria; Glide tiene
+     * i 32 bit solo per le immagini trasparenti). Su disco resta anche la copia già ridotta: rivederla costa la decodifica di un
+     * file piccolo, non quella dell'originale. TMDB: misura ridotta e, se quella non arriva, l'indirizzo originale.
+     */
     fun img(v: ImageView, url: String?, w: Int, h: Int) {
         if (url.isNullOrBlank() || !url.startsWith("http")) {
             Glide.with(v).clear(v)
             v.setImageDrawable(null)
             return
         }
-        var rq = Glide.with(v).load(url).override(w, h).dontAnimate().diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-        if (App.lite) rq = rq.format(DecodeFormat.PREFER_RGB_565)
-        rq.into(v)
+        val small = tmdb(url, w, h)
+        val rq = request(v, small, w, h)
+        if (small == url) rq.into(v) else rq.error(fit(v, request(v, url, w, h))).into(v)
+    }
+
+    private fun request(v: ImageView, url: String, w: Int, h: Int): RequestBuilder<Drawable> {
+        var rq = Glide.with(v).load(url).override(w, h).dontAnimate().diskCacheStrategy(DiskCacheStrategy.ALL)
+        if (weak()) rq = rq.format(DecodeFormat.PREFER_RGB_565)
+        return rq
+    }
+
+    /**
+     * Svuota la cache delle immagini in memoria (thread principale). Le bitmap tolte dalla cache tornano nel pool di Glide
+     * solo al giro successivo del thread principale: il pool si svuota di nuovo subito dopo, altrimenti resterebbero lì.
+     */
+    fun clearMemory() {
+        try { Glide.get(App.I).clearMemory() } catch (_: Throwable) {}
+        App.main.post { try { Glide.get(App.I).bitmapPool.clearMemory() } catch (_: Throwable) {} }
+    }
+
+    /** la richiesta di riserva riceve lo stesso adattamento che Glide dà da solo a quella principale (dallo scaleType) */
+    private fun fit(v: ImageView, rq: RequestBuilder<Drawable>): RequestBuilder<Drawable> = when (v.scaleType) {
+        ImageView.ScaleType.CENTER_CROP -> rq.optionalCenterCrop()
+        ImageView.ScaleType.CENTER_INSIDE, ImageView.ScaleType.FIT_XY -> rq.optionalCenterInside()
+        ImageView.ScaleType.FIT_CENTER, ImageView.ScaleType.FIT_START, ImageView.ScaleType.FIT_END -> rq.optionalFitCenter()
+        else -> rq
     }
 
     fun dialog(a: Activity, title: String, msg: String, ok: String = "OK", cancel: String? = null, onOk: (() -> Unit)? = null): AlertDialog? {

@@ -3,6 +3,7 @@ package com.kairos.lite
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.Application
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
@@ -32,15 +33,18 @@ class App : Application() {
         Db.init(this)
         lite = detectLite()
         max = Store.liteMode == "max"
-        // immagini: memoria e spazio su disco limitati (le chiavette hanno 1 GB di RAM e poco spazio)
+        // immagini: memoria limitata per classe (le chiavette hanno 1 GB di RAM); su disco un tetto per classe, così locandine e
+        // loghi non si riscaricano: cartella cache dell'app, che Android svuota da sola se manca spazio
         try {
-            val mem = if (max) 4L shl 20 else if (lite) 6L shl 20 else 20L shl 20
+            val weakDev = Line.device() == "D"
+            var mem = if (max) 4L shl 20 else if (lite) 6L shl 20 else 20L shl 20
+            // classe D (Kairos Adaptive): al massimo 1/8 della memoria concessa all'app, anche senza modalità leggera
+            if (weakDev) mem = minOf(mem, ((getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).memoryClass.toLong() shl 20) / 8)
             Glide.init(this, GlideBuilder()
                 .setMemoryCache(LruResourceCache(mem))
                 .setBitmapPool(LruBitmapPool(mem / 2))
-                // cartella predefinita di Glide: la cache della 1.0 (fino a 250 MB) viene ridotta, non lasciata lì
-                .setDiskCache(InternalCacheDiskCacheFactory(this, if (max) 25L shl 20 else if (lite) 40L shl 20 else 120L shl 20))
-                .setDefaultRequestOptions(RequestOptions().format(if (lite) DecodeFormat.PREFER_RGB_565 else DecodeFormat.PREFER_ARGB_8888))
+                .setDiskCache(InternalCacheDiskCacheFactory(this, if (weakDev) 150L shl 20 else 250L shl 20))
+                .setDefaultRequestOptions(RequestOptions().format(if (lite || weakDev) DecodeFormat.PREFER_RGB_565 else DecodeFormat.PREFER_ARGB_8888))
                 .setLogLevel(android.util.Log.ERROR))
         } catch (_: Throwable) {}
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
@@ -62,12 +66,14 @@ class App : Application() {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        try { Glide.get(this).trimMemory(level) } catch (_: Throwable) {}
+        // memoria che scarseggia (o app in sfondo): via tutta la cache delle immagini in memoria, poi si rilegge dal disco
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) Ui.clearMemory()
+        else try { Glide.get(this).trimMemory(level) } catch (_: Throwable) {}
     }
 
     override fun onLowMemory() {
         super.onLowMemory()
-        try { Glide.get(this).clearMemory() } catch (_: Throwable) {}
+        Ui.clearMemory()
     }
 
     fun detectLite(): Boolean = when (Store.liteMode) {
