@@ -127,6 +127,7 @@ object Remote {
     /** liste, immagini e file temporanei: tutto da riscaricare */
     private fun clearAll() {
         try { Db.clear(Db.w) } catch (_: Exception) {}
+        Db.changed()
         try { Store.syncSig = ""; Store.syncAt = 0 } catch (_: Exception) {}
         try { Glide.get(App.I).clearDiskCache() } catch (_: Throwable) {}
         try { App.I.cacheDir.deleteRecursively() } catch (_: Exception) {}

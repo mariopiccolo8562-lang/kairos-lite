@@ -101,33 +101,64 @@ object Db {
         q.args.addAll(list)
     }
 
+    /* ---------------- conteggi in memoria ---------------- */
+    // categorie e totali cambiano solo quando le liste si ricaricano: fino ad allora si rileggono da qui. Aprire TV in diretta,
+    // Film o Serie e tornare alla Home non rifà le scansioni di decine di migliaia di righe.
+    private val counted = HashMap<String, Any>()
+    private var gen = 0
+
+    /** le liste sono cambiate (una parte ricaricata, playlist tolte, archivio svuotato): conteggi e categorie si rileggono */
+    fun changed() { synchronized(counted) { gen++; counted.clear() } }
+
+    /** [compute] fuori dal lucchetto; il risultato si tiene solo se nel frattempo le liste non sono cambiate */
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : Any> remember(key: String, compute: () -> T): T {
+        val g = synchronized(counted) { (counted[key] as T?)?.let { return it }; gen }
+        val v = compute()
+        synchronized(counted) { if (gen == g) counted[key] = v }
+        return v
+    }
+
+    private fun key(what: String, table: String, pls: List<String>, kids: Boolean) = what + "|" + table + "|" + pls.joinToString(",") + "|" + kids
+
     /* ---------------- categorie ---------------- */
     class Cat(val id: String, val name: String, var count: Int = -1, val adult: Boolean = false)
 
-    fun cats(kind: String, pls: List<String>, kids: Boolean): List<Cat> {
-        if (pls.isEmpty()) return emptyList()
-        val q = base(pls, kids)
-        val out = ArrayList<Cat>()
+    fun cats(kind: String, pls: List<String>, kids: Boolean): List<Cat> = catsAndTotal(kind, pls, kids).first
+
+    /** categorie con il numero di contenuti e, dallo stesso passaggio sulla tabella, il totale (= [count]) */
+    fun catsAndTotal(kind: String, pls: List<String>, kids: Boolean): Pair<List<Cat>, Int> {
+        if (pls.isEmpty()) return emptyList<Cat>() to 0
         val table = if (kind == "live") "live" else kind
-        val counts = HashMap<String, Int>()
-        r.rawQuery("SELECT cat, COUNT(*) FROM $table WHERE ${q.where} GROUP BY cat", q.args.toTypedArray()).use { c ->
-            while (c.moveToNext()) counts[c.getString(0) ?: ""] = c.getInt(1)
-        }
-        val q2 = base(pls, kids)
-        r.rawQuery("SELECT id, name, adult FROM cat WHERE kind = ? AND ${q2.where} ORDER BY ord", arrayOf(kind) + q2.args.toTypedArray()).use { c ->
-            while (c.moveToNext()) {
-                val id = c.getString(0) ?: continue
-                val n = counts[id] ?: 0
-                if (n > 0) out.add(Cat(id, c.getString(1) ?: "", n, c.getInt(2) == 1))
+        return remember(key("cats", table, pls, kids)) {
+            val q = base(pls, kids)
+            val out = ArrayList<Cat>()
+            val counts = HashMap<String, Int>()
+            var total = 0
+            r.rawQuery("SELECT cat, COUNT(*) FROM $table WHERE ${q.where} GROUP BY cat", q.args.toTypedArray()).use { c ->
+                while (c.moveToNext()) { val n = c.getInt(1); counts[c.getString(0) ?: ""] = n; total += n }
             }
+            val q2 = base(pls, kids)
+            r.rawQuery("SELECT id, name, adult FROM cat WHERE kind = ? AND ${q2.where} ORDER BY ord", arrayOf(kind) + q2.args.toTypedArray()).use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getString(0) ?: continue
+                    val n = counts[id] ?: 0
+                    if (n > 0) out.add(Cat(id, c.getString(1) ?: "", n, c.getInt(2) == 1))
+                }
+            }
+            val res: Pair<List<Cat>, Int> = out to total
+            res
         }
-        return out
     }
 
     fun count(table: String, pls: List<String>, kids: Boolean): Int {
         if (pls.isEmpty()) return 0
-        val q = base(pls, kids)
-        r.rawQuery("SELECT COUNT(*) FROM $table WHERE ${q.where}", q.args.toTypedArray()).use { c -> return if (c.moveToFirst()) c.getInt(0) else 0 }
+        // già contato insieme alle categorie (TV in diretta, Film, Serie aperti prima)
+        synchronized(counted) { (counted[key("cats", table, pls, kids)] as? Pair<*, *>)?.let { p -> (p.second as? Int)?.let { return it } } }
+        return remember(key("count", table, pls, kids)) {
+            val q = base(pls, kids)
+            r.rawQuery("SELECT COUNT(*) FROM $table WHERE ${q.where}", q.args.toTypedArray()).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+        }
     }
 
     fun isEmpty(): Boolean = try {
