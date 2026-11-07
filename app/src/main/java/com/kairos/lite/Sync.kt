@@ -48,16 +48,31 @@ object Sync {
         return sig(pls) != Store.syncSig || System.currentTimeMillis() - Store.syncAt > 12 * 3600_000L || Db.isEmpty()
     }
 
+    /** controllo «servono liste nuove?» già in coda sul thread delle liste */
+    private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
+
     fun start(force: Boolean = false) {
         if (running) return
         val pls = K.active()
         if (pls.isEmpty()) return
-        if (!force && !needed()) return
-        running = true
+        if (force) { begin(pls, here = false); return }
+        // il controllo legge anche l'archivio su disco (aprirlo costa decine di ms sulle chiavette): sul thread delle liste,
+        // non su quello principale all'avvio e a ogni ritorno nella Home
+        if (!checking.compareAndSet(false, true)) return
+        exec.execute {
+            checking.set(false)
+            val go = !running && (try { needed() } catch (_: Throwable) { false })
+            if (go) begin(pls, here = true)
+        }
+    }
+
+    /** un aggiornamento alla volta: chi arriva secondo non parte. [here] = già sul thread delle liste, si parte subito */
+    private fun begin(pls: List<Playlist>, here: Boolean) {
+        synchronized(this) { if (running) return; running = true }
         pct = 0
         error = ""
         emit(true)
-        exec.execute { run(pls) }
+        if (here) run(pls) else exec.execute { run(pls) }
     }
 
     /** sale ogni volta che una parte delle liste è pronta (prima i canali, poi film e serie) */

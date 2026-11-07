@@ -46,15 +46,22 @@ object Updater {
     @Volatile private var lastCheck = 0L
     @Volatile private var prefetchFailed = 0
 
-    /** l'app torna in primo piano: nuovo controllo e, se c'è già una versione nuova, la si propone di nuovo */
+    /** dopo l'apertura il controllo in rete aspetta qualche secondo: prima vengono il primo fotogramma, le liste e il battito */
+    @Volatile private var notBefore = 0L
+    private val fgCheck = Runnable { maybeCheck(10 * 60_000L) }
+
+    /** l'app torna in primo piano: nuovo controllo (tra 5 s) e, se c'è già una versione nuova, la si propone di nuovo */
     fun onForeground() {
         askedCode = 0
-        maybeCheck(10 * 60_000L)
+        notBefore = SystemClock.elapsedRealtime() + 5_000
+        App.main.removeCallbacks(fgCheck)
+        App.main.postDelayed(fgCheck, 5_100)
     }
 
     /** chiamato anche dal battito ogni 20 s: il controllo vero parte solo ogni [gap] */
     fun maybeCheck(gap: Long = 60 * 60_000L) {
         val now = SystemClock.elapsedRealtime()
+        if (now < notBefore) return
         if (lastCheck != 0L && now - lastCheck < gap) return
         if (!checking.compareAndSet(false, true)) return
         lastCheck = now

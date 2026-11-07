@@ -19,6 +19,7 @@ class HomeActivity : BaseActivity() {
     private lateinit var recentBox: View
     private val recent = RecentAdapter()
     private var phaseWas = Sync.phase
+    private var runWas = Sync.running
     private val syncL: () -> Unit = { showSync() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -114,8 +115,9 @@ class HomeActivity : BaseActivity() {
     }
 
     private fun showSync() {
-        // canali pronti prima di film e serie: i numeri si aggiornano a ogni parte
-        if (Sync.phase != phaseWas) { phaseWas = Sync.phase; counts() }
+        // canali pronti prima di film e serie: i numeri si aggiornano a ogni parte, e quando l'aggiornamento parte
+        // (il controllo è sul thread delle liste: può partire un attimo dopo l'apertura della Home)
+        if (Sync.phase != phaseWas || Sync.running != runWas) { phaseWas = Sync.phase; runWas = Sync.running; counts() }
         if (Sync.running) {
             sync.visibility = View.VISIBLE
             sync.text = "Aggiornamento delle liste… ${Sync.pct}%"

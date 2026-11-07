@@ -1,6 +1,7 @@
 package com.kairos.lite
 
 import android.os.Build
+import android.os.Looper
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
@@ -190,6 +191,9 @@ object Panel {
         // manutenzione: resta l'ultimo stato buono, l'abbonamento non è cambiato
         if (s.status != "maintenance") Store.stateJson = if (s.active) cache.toString() else ""
         state = s
+        // VPN da accendere: il motore WireGuard (libreria nativa di alcuni MB) si carica qui, nel thread di rete,
+        // e non sul thread principale quando la schermata applica lo stato
+        if (Looper.myLooper() != Looper.getMainLooper() && Vpns.wanted() != null) try { KxVpn.supported(App.I) } catch (_: Throwable) {}
         return s
     }
 
