@@ -55,8 +55,23 @@ abstract class BaseActivity : Activity() {
         shieldRefresh()
         for (ms in longArrayOf(800, 2_000, 4_000, 8_000)) App.main.postDelayed({ if (!isFinishing) shieldRefresh() }, ms)
     }
-    /** lo stato dal pannello è cambiato: prima lo scudo, poi la schermata */
-    fun stateChanged() { shieldRefresh(); onStateChanged() }
+    /** lo stato dal pannello è cambiato: prima lo scudo, poi la schermata (o la scelta del profilo, se quello in uso non c'è più) */
+    fun stateChanged() {
+        shieldRefresh()
+        if (profileGone()) return
+        onStateChanged()
+    }
+
+    /**
+     * Il profilo in uso è stato tolto dal pannello: si torna a «Chi guarda?» come all'avvio. Mai durante la visione: lì vale al
+     * ritorno nei menu (onResume).
+     */
+    private fun profileGone(): Boolean {
+        if (this is ProfilesActivity || this is PlayerActivity || this is ActivationActivity || isFinishing || !K.profileGone()) return false
+        startActivity(Intent(this, ProfilesActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+        finish()
+        return true
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -103,6 +118,7 @@ abstract class BaseActivity : Activity() {
         if (needsActive) {
             val s = Panel.state ?: Panel.loadCached()
             if (s == null || !s.active) { goActivation(); return }
+            if (profileGone()) return
             Vpns.apply(this)
         }
         if (clockView != null) { App.main.removeCallbacks(clockTick); clockTick.run() }

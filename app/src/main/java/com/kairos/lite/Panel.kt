@@ -148,6 +148,11 @@ class State(
 
 object Panel {
     @Volatile var state: State? = null
+    /**
+     * Impronta dell'account (profili, massimi, intestatario, connessioni) dell'ultimo register: il battito porta la sua e,
+     * se è diversa, lo stato si rilegge (vedi Pulse). Vuota = pannello che non la manda.
+     */
+    @Volatile var af: String = ""
 
     class Err(msg: String) : Exception(msg)
 
@@ -170,7 +175,11 @@ object Panel {
         state?.let { return it }
         val t = Store.stateJson
         if (t.isEmpty()) return null
-        return try { State.parse(JSONObject(t)).also { state = it } } catch (_: Exception) { null }
+        return try {
+            val j = JSONObject(t)
+            if (af.isEmpty()) af = j.optString("af", "")
+            State.parse(j).also { state = it }
+        } catch (_: Exception) { null }
     }
 
     fun register(): State {
@@ -191,6 +200,7 @@ object Panel {
         // manutenzione: resta l'ultimo stato buono, l'abbonamento non è cambiato
         if (s.status != "maintenance") Store.stateJson = if (s.active) cache.toString() else ""
         state = s
+        af = j.optString("af", "")
         // VPN da accendere: il motore WireGuard (libreria nativa di alcuni MB) si carica qui, nel thread di rete,
         // e non sul thread principale quando la schermata applica lo stato
         if (Looper.myLooper() != Looper.getMainLooper() && Vpns.wanted() != null) try { KxVpn.supported(App.I) } catch (_: Throwable) {}
@@ -353,6 +363,9 @@ object K {
         val a = Panel.state?.account ?: return false
         return a.profiles.isNotEmpty() && a.profiles.none { it.id == Store.profileId }
     }
+
+    /** il profilo scelto su questa TV non c'è più nell'account (tolto dal pannello): si sceglie di nuovo, come all'avvio */
+    fun profileGone(): Boolean = Store.profileId.isNotEmpty() && needsProfile()
 
     fun unseenMessages(): List<Msg> {
         val seen = Store.seenMsgs

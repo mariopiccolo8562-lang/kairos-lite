@@ -29,6 +29,8 @@ object Pulse {
     private var pv = ""
     /** tornati in primo piano: il prossimo battito parte subito (anche prima del minuto dei menu) finché il pannello non lo accetta */
     @Volatile private var fgDue = false
+    /** impronta dell'account per cui è già partita una rilettura dello stato: niente riletture ripetute per la stessa */
+    @Volatile private var afTried = ""
     /** passaggi in primo piano: la risposta di un battito partito prima di andare in sfondo non vale per il ritorno */
     @Volatile private var fgSeq = 0
     /** il pannello ha risposto 429 con «wait»: prima di questo istante non si riprova */
@@ -188,13 +190,17 @@ object Pulse {
         if (j.optInt("mt", 0) == 1) changed = true
         val unseen = j.optInt("unseen", -1)
         if (unseen > K.unseenMessages().size) changed = true
+        // impronta dell'account cambiata (profili creati, modificati o tolti, massimi, intestatario): profili subito sull'app,
+        // senza riaprirla. Assente (pannello vecchio): come prima
+        val af = j.optString("af", "")
+        if (af.isNotEmpty() && af != Panel.af && af != afTried) { afTried = af; changed = true }
         if (changed || SystemClock.elapsedRealtime() - lastReg > 20 * 60_000L) refresh()
     }
 
     /** rilegge lo stato dal pannello e riallinea l'app */
     fun refresh() {
         lastReg = SystemClock.elapsedRealtime()
-        val s = try { Panel.register() } catch (_: Exception) { return }
+        val s = try { Panel.register() } catch (_: Exception) { afTried = ""; return } // al battito dopo si riprova
         ui { applyState(s) }
     }
 
