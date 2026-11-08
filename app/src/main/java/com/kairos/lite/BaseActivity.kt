@@ -125,6 +125,8 @@ abstract class BaseActivity : Activity() {
         shieldRefresh()
         Updater.resume(this) // di ritorno dalla schermata del permesso «Installa app sconosciute»: l'installazione riparte
         Updater.offer(this) // versione nuova trovata mentre si guardava un canale: la si propone qui
+        // PIN del controllo genitori reimpostato durante la visione: a lettore chiuso si chiede subito il nuovo PIN
+        if (Parental.askPending && this !is PlayerActivity) App.main.postDelayed({ if (!isFinishing && App.top === this && Parental.askPending) Parental.askNow(this) }, 1000)
     }
 
     override fun onPause() {
@@ -155,10 +157,8 @@ abstract class BaseActivity : Activity() {
         finish()
     }
 
-    /** il fornitore ha premuto «Disconnetti» nel pannello */
-    open fun onKicked() {
-        Ui.dialog(this, "Visione interrotta", "Il tuo fornitore ha chiuso la visione su questo dispositivo.")
-    }
+    /** «Disconnetti» dal pannello: nei menu non c'è niente da chiudere (l'anteprima la ferma [LiveActivity]); nessun avviso al cliente */
+    open fun onKicked() {}
 
     /** lo stato dal pannello è cambiato (playlist, permessi, messaggi…) */
     open fun onStateChanged() {}

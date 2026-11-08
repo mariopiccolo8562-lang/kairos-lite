@@ -357,6 +357,9 @@ class LiveActivity : BaseActivity() {
         }
     }
 
+    /** «Disconnetti» dal pannello: si ferma anche l'anteprima nel riquadro, senza avvisi */
+    override fun onKicked() { stopVideo() }
+
     private fun stopVideo() {
         videoSeq++
         previewId = 0
