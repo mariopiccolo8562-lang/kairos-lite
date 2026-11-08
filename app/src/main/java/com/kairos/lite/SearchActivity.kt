@@ -69,6 +69,7 @@ class SearchActivity : BaseActivity() {
     private fun openHit(h: Db.Hit) {
         when (h.table) {
             "live" -> {
+                if (Updater.block(this)) return // aggiornamento obbligatorio scaduto: prima la finestra che blocca l'app
                 Store.lastLiveId = h.id
                 startActivity(Intent(this, PlayerActivity::class.java).putExtra("kind", "live").putExtra("cat", h.cat).putExtra("rowId", h.id))
             }

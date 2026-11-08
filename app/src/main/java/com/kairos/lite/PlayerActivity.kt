@@ -43,6 +43,7 @@ object Play {
     }
 
     fun vod(a: Activity, kind: String, id: String, title: String, sub: String, url: String, pos: Long, recent: JSONObject, queue: JSONArray?) {
+        if (Updater.block(a)) return // aggiornamento obbligatorio scaduto: prima la finestra che blocca l'app
         val i = Intent(a, PlayerActivity::class.java)
             .putExtra("kind", kind).putExtra("id", id).putExtra("title", title).putExtra("sub", sub)
             .putExtra("url", url).putExtra("pos", pos).putExtra("recent", recent.toString())
@@ -275,8 +276,16 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
+    /** lettore riaperto da Android senza una scelta del cliente (app chiusa per memoria e ripresa dalle app recenti) */
+    private var auto = false
+    /** schermata visibile (tra onStart e onStop) */
+    private var visible = false
+    /** finestra dell'aggiornamento a video prima di un canale riaperto da Android: il canale parte quando si chiude */
+    private var askingUpdate = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        auto = savedInstanceState != null
         setContentView(R.layout.activity_player)
         pv = findViewById(R.id.pv)
         spin = findViewById(R.id.spin)
@@ -340,20 +349,47 @@ class PlayerActivity : BaseActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (player == null) {
-            newPlayer()
-            Pulse.stats = { stats() }
-            if (live) {
-                tune(curId)
-                loadIds()
-            } else startVod()
+        visible = true
+        if (player == null && !askingUpdate) {
+            if (Updater.block(this)) {
+                // aggiornamento obbligatorio scaduto: resta la finestra che blocca l'app, nessun canale
+            } else if (auto && Updater.askFirst(this, this::afterAsk)) {
+                // canale riaperto da Android: prima la proposta dell'aggiornamento, il canale dopo «Più tardi»
+                askingUpdate = true
+            } else begin()
         }
         App.main.removeCallbacks(tickR)
         App.main.post(tickR)
     }
 
+    /** proposta chiusa: con «Più tardi» parte il canale; scelto l'aggiornamento, si riprova al ritorno dall'installatore */
+    private fun afterAsk(chosen: Boolean) {
+        askingUpdate = false
+        if (!chosen && visible && player == null && !isFinishing) begin()
+    }
+
+    private fun begin() {
+        newPlayer()
+        Pulse.stats = { stats() }
+        if (live) {
+            tune(curId)
+            loadIds()
+        } else startVod()
+    }
+
+    /** prima di ogni canale o titolo (anche cambio canale ed episodio dopo): aggiornamento obbligatorio scaduto = niente visione */
+    private fun blockedByUpdate(): Boolean {
+        if (!Updater.block(this)) return false
+        App.main.removeCallbacks(retryR)
+        try { player?.stop() } catch (_: Exception) {}
+        spin.visibility = View.GONE
+        Pulse.watch(null)
+        return true
+    }
+
     override fun onStop() {
         super.onStop()
+        visible = false
         App.main.removeCallbacks(tickR)
         App.main.removeCallbacks(retryR)
         App.main.removeCallbacks(netWaitR)
@@ -1022,6 +1058,7 @@ class PlayerActivity : BaseActivity() {
     /** [variant] = un'altra versione dello stesso canale (qualità adattiva), non un cambio canale */
     private fun tune(id: Long, variant: Boolean = false) {
         if (id <= 0 || kicked) return
+        if (!variant && blockedByUpdate()) return
         if (!variant) {
             closeProblem() // problema del canale di prima: il cliente è passato oltre
             setSoft(false, null)
@@ -1207,6 +1244,7 @@ class PlayerActivity : BaseActivity() {
     /* ---------------- film ed episodi ---------------- */
     private fun startVod() {
         if (kicked) return
+        if (blockedByUpdate()) return
         nameV.text = vodTitle
         subV.text = vodSub
         val st = kind

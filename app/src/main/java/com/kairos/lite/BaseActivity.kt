@@ -107,6 +107,7 @@ abstract class BaseActivity : Activity() {
         }
         if (clockView != null) { App.main.removeCallbacks(clockTick); clockTick.run() }
         shieldRefresh()
+        Updater.resume(this) // di ritorno dalla schermata del permesso «Installa app sconosciute»: l'installazione riparte
         Updater.offer(this) // versione nuova trovata mentre si guardava un canale: la si propone qui
     }
 

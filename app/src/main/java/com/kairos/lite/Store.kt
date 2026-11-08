@@ -84,6 +84,24 @@ object Store {
     var updSeen: Long
         get() = p.getLong("updSeen", 0)
         set(v) = p.edit().putLong("updSeen", v).apply()
+
+    /* versione nuova trovata dall'ultimo controllo (resta anche chiudendo l'app): codice (0 = nessuna), versione, indirizzo
+       dell'APK; e l'APK già scaricato e verificato: percorso, misura e data del file (se il file cambia non vale più) */
+    val updCode: Int get() = p.getInt("updCode", 0)
+    val updVer: String get() = s("updVer")
+    val updUrl: String get() = s("updUrl")
+    val updFile: String get() = s("updFile")
+    val updLen: Long get() = p.getLong("updLen", 0)
+    val updMtime: Long get() = p.getLong("updMtime", 0)
+    fun saveUpd(code: Int, ver: String, url: String) {
+        p.edit().putInt("updCode", code).putString("updVer", ver).putString("updUrl", url).apply()
+    }
+    fun saveUpdFile(path: String, len: Long, mtime: Long) {
+        p.edit().putString("updFile", path).putLong("updLen", len).putLong("updMtime", mtime).apply()
+    }
+    fun clearUpd() {
+        p.edit().remove("updCode").remove("updVer").remove("updUrl").remove("updFile").remove("updLen").remove("updMtime").apply()
+    }
     /** anteprima nella lista canali: click (primo OK = riquadro, secondo OK = schermo intero) | off */
     var preview: String
         get() = Remote.preview ?: s("previewMode", "click")

@@ -306,6 +306,7 @@ class LiveActivity : BaseActivity() {
 
     private fun startVideo() {
         if (!previewOn() || isFinishing) return
+        if (Updater.block(this)) return // anche l'anteprima è un canale: prima l'aggiornamento obbligatorio
         val r = curRow ?: return
         val full = Play.liveUrls(r).firstOrNull() ?: run { play(curPos); return }
         val id = r.l("_id")
@@ -378,6 +379,7 @@ class LiveActivity : BaseActivity() {
     private fun play(pos: Int) {
         val c = chAdapter.cursor ?: return
         if (pos < 0 || c.isClosed || !c.moveToPosition(pos)) return
+        if (Updater.block(this)) return // aggiornamento obbligatorio scaduto: prima la finestra che blocca l'app
         val id = c.getLong(0)
         stopVideo()
         releaseVideo() // un solo decoder alla volta: l'anteprima si chiude prima dello schermo intero

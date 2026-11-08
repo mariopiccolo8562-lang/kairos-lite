@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
+    <!-- APK dell'aggiornamento: Android 7+ nei file dell'app (la cache la svuota Android quando manca spazio) -->
+    <files-path name="apk_files" path="apk/" />
+    <!-- cartella usata fino alla 1.4 -->
     <cache-path name="apk" path="apk/" />
     <external-cache-path name="apk_ext" path="." />
 </paths>

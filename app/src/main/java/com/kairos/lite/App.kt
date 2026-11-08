@@ -32,6 +32,8 @@ class App : Application() {
         I = this
         Store.init(this)
         Db.init(this)
+        // versione nuova trovata prima e APK già verificato: subito, così l'aggiornamento obbligatorio blocca prima dei canali
+        Updater.restore()
         lite = detectLite()
         max = Store.liteMode == "max"
         // immagini: memoria limitata per classe (le chiavette hanno 1 GB di RAM); su disco un tetto per classe, così locandine e
