@@ -62,7 +62,7 @@ jobs:
           KAIROS_SERVER_URL: ${{ vars.KAIROS_SERVER_URL }}
           LITE_APP_NAME: ${{ vars.LITE_APP_NAME }}
           LITE_APP_ID: ${{ vars.LITE_APP_ID }}
-        run: gradle assembleRelease --no-daemon --stacktrace
+        run: gradle testReleaseUnitTest assembleRelease --no-daemon --stacktrace
 
       - run: cp app/build/outputs/apk/release/app-release.apk kairos-lite.apk
 
