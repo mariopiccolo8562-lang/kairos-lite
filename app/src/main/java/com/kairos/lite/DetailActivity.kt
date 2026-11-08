@@ -103,13 +103,14 @@ class DetailActivity : BaseActivity() {
     }
 
     private fun setBackdrop(url: String) {
-        if (url.isEmpty() || url == backdrop || App.max) return // «Leggerissima»: basta la locandina
+        if (url.isEmpty() || url == backdrop) return
         backdrop = url
         showBackdrop()
     }
 
+    /** sfondo della scheda in ogni modalità: sulle chiavette solo più leggero (misura ridotta, 16 bit), mai tolto */
     private fun showBackdrop() {
-        val w = if (App.lite) 640 else 1280
+        val w = if (App.max) 480 else if (App.lite) 640 else 1280
         Ui.img(findViewById(R.id.backdrop), backdrop, w, w * 9 / 16)
     }
 
