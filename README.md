@@ -30,6 +30,15 @@ Con la linea buona la qualità non si tocca, **anche sulle chiavette da 1 GB** (
 - Il dispositivo debole tiene solo i buffer più piccoli (memoria); i flussi HLS a più qualità seguono la linea, non la chiavetta.
 - Anteprima nella lista canali: i canali FHD e 4K in HD se la playlist ce l'ha (prima l'SD).
 
+## Adulti fuori dalla Home
+
+Voce `adult` del controllo remoto (spunta del pannello «Nascondi gli adulti dalla Home»), uguale in tutte le app Kairos:
+- Diversa da `on`, anche assente o vuota: nella Home (tre riquadri e «Continua a guardare») non compare niente per adulti. Da «Continua a guardare» escono i film e le serie delle categorie per adulti o nascoste e quelli con un nome per adulti; se resta vuota non si vede.
+- Negli elenchi (Film, Serie TV, TV in diretta) le categorie per adulti vanno in fondo, come quelle nascoste, e restano raggiungibili. Ricerca, guida TV e zapping non cambiano; il PIN del controllo genitori resta com'è.
+- `on`: tutto come prima, vale solo la lista «Categorie nascoste dalla Home» (`home.hide`). Quella lista vale sempre, in aggiunta al riconoscimento automatico.
+
+Riconoscimento in `AdultFilter.kt` (normalizzazione NFKD e le due espressioni del contratto comune: «Adult Swim» resta, per i titoli contano solo le parole forti, quindi «Sex Education» resta), regole in `HomeCfg.kt`. Prove: `AdultFilterTest` (i 94 esempi di `src/test/resources/adult-vectors.json`) e `HomeCfgTest`. Ogni categoria si riconosce una volta sola (cache per nome), i titoli di «Continua a guardare» solo quando si apre la Home; niente lavoro in più durante la visione.
+
 ## Messa in funzione (una volta sola)
 
 1. **Il repository deve essere pubblico**: altrimenti Downloader e l'aggiornamento automatico non possono scaricare l'APK.

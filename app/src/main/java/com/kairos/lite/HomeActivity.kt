@@ -85,6 +85,8 @@ class HomeActivity : BaseActivity() {
     override fun onStateChanged() {
         fillAccount()
         counts()
+        // Home dal pannello cambiata (es. adulti nascosti o visibili): «Continua a guardare» si rifà subito
+        if (HomeCfg.key() != recentKey) fillRecent()
         messages()
     }
 
@@ -129,11 +131,38 @@ class HomeActivity : BaseActivity() {
         } else sync.visibility = View.GONE
     }
 
+    /** configurazione della Home con cui è stato riempito «Continua a guardare», e ultima richiesta (vale solo l'ultima) */
+    private var recentKey = ""
+    private var recentSeq = 0
+
     private fun fillRecent() {
+        recentKey = HomeCfg.key()
+        val my = ++recentSeq
         val list = Store.recent()
+        if (list.isEmpty() || !HomeCfg.noAdult()) { showRecent(list); return }
+        // Home senza adulti (rc «adult» diverso da "on"): le categorie dei titoli si leggono dall'archivio, fuori dal thread dell'interfaccia
+        bg {
+            val ok = homeRecent(list)
+            ui { if (!isFinishing && my == recentSeq) showRecent(ok) }
+        }
+    }
+
+    private fun showRecent(list: List<JSONObject>) {
         recent.items = list
         recent.notifyDataSetChanged()
         recentBox.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    /**
+     * «Continua a guardare» senza adulti: fuori i film e le serie delle categorie nascoste o per adulti e quelli con un nome
+     * per adulti (vedi [HomeCfg.blocked]). Legge l'archivio: solo fuori dal thread dell'interfaccia.
+     */
+    private fun homeRecent(all: List<JSONObject>): List<JSONObject> {
+        fun tableOf(o: JSONObject) = if (o.optString("kind") == "series") "series" else "vod"
+        fun keyOf(o: JSONObject) = if (o.optString("kind") == "series") o.optString("group") else o.optString("id")
+        val names = HashMap<String, Map<String, String>>()
+        for ((t, items) in all.groupBy { tableOf(it) }) names[t] = Db.catNames(t, items.map { keyOf(it) })
+        return all.filter { o -> !HomeCfg.blocked(o.optString("title"), names[tableOf(o)]?.get(keyOf(o))) }
     }
 
     private fun messages() {

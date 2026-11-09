@@ -207,6 +207,23 @@ object Db {
         return c
     }
 
+    /**
+     * nome della categoria di alcuni titoli di [table] (vod / series), per chiave k: serve a «Continua a guardare» nella Home
+     * senza adulti. Una sola lettura con gli indici; se non riesce restano i soli nomi dei titoli.
+     */
+    fun catNames(table: String, keys: Collection<String>): Map<String, String> {
+        val list = keys.filter { it.isNotEmpty() }.distinct().take(200)
+        if (list.isEmpty()) return emptyMap()
+        val out = HashMap<String, String>()
+        try {
+            val ph = list.joinToString(",") { "?" }
+            r.rawQuery("SELECT t.k, c.name FROM $table t JOIN cat c ON c.kind = ? AND c.pl = t.pl AND c.id = t.cat WHERE t.k IN ($ph)", arrayOf(table) + list.toTypedArray()).use { c ->
+                while (c.moveToNext()) { val k = c.getString(0) ?: continue; out[k] = c.getString(1) ?: "" }
+            }
+        } catch (_: Exception) {}
+        return out
+    }
+
     /* ---------------- una riga ---------------- */
     class Row(private val m: Map<String, String?>) {
         fun s(k: String): String = m[k] ?: ""
