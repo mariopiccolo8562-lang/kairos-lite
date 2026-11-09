@@ -127,8 +127,9 @@ object Pulse {
             val (c, j) = r
             when {
                 c == 200 && j != null -> {
-                    // solo un battito accettato conta per il limite di frequenza
-                    lastHb = now
+                    // solo un battito accettato conta per il limite di frequenza, dall'istante della risposta: contato dalla
+                    // partenza, un battito arrivato più in fretta del precedente cadeva prima dei 15 s e il pannello lo rifiutava (429)
+                    lastHb = SystemClock.elapsedRealtime()
                     lastSig = sig
                     waitUntil = 0L
                     if (gen == fgSeq) fgDue = false
