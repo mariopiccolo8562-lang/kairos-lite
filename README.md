@@ -46,7 +46,7 @@ Riconoscimento in `AdultFilter.kt` (normalizzazione NFKD e le due espressioni de
    - Più semplice: usa **gli stessi valori** di KAIROS TV (file `LEGGIMI-SEGRETI.txt` che hai conservato).
    - Oppure: *Actions → «Prepara segreti» → Run workflow*, scarica l'allegato e copia i 4 valori. Conserva `release.jks` e poi elimina l'esecuzione.
    > ⚠️ Se perdi la chiave di firma non potrai più aggiornare l'app sui dispositivi dei clienti.
-3. Facoltativo, in *Variables*: `LITE_APP_NAME` (nome sotto l'icona, predefinito «Kairos Lite»), `KAIROS_SERVER_URL` (se il pannello cambia indirizzo; predefinito quello attuale su workers.dev).
+3. Facoltativo, in *Variables*: `LITE_APP_NAME` (nome sotto l'icona, predefinito «Kairos Lite»), `KAIROS_SERVER_URL` (se il pannello cambia indirizzo; predefinito quello attuale su workers.dev), `KAIROS_DL_BASE` (indirizzo dei download e degli aggiornamenti; predefinito `https://panel-kairos.com`).
 
 ## Pubblicare una versione
 
@@ -54,7 +54,7 @@ Riconoscimento in `AdultFilter.kt` (normalizzazione NFKD e le due espressioni de
 
 - Link fisso per **Downloader** e per lo store:
   `https://github.com/mariopiccolo8562-lang/kairos-lite/releases/latest/download/kairos-lite.apk`
-- Le app installate leggono `kairos-lite.json` dell'ultima release di **questo** repository e propongono l'aggiornamento all'avvio e ogni 3 ore. Kairos Lite è separata da KAIROS TV: del pannello Kairos usa solo i clienti (attivazione, playlist, profili…).
+- Le app installate chiedono gli aggiornamenti al pannello, `https://panel-kairos.com/get/lite.json` (indirizzo dei download `DL_BASE` in `app/build.gradle.kts`, variabile `KAIROS_DL_BASE`), scaricano l'APK dal link che c'è dentro e propongono l'aggiornamento da sole all'avvio e ogni 3 ore; solo se il pannello non risponde leggono `kairos-lite.json` dell'ultima release di **questo** repository (riserva finché il repository è pubblico). Kairos Lite è separata da KAIROS TV: del pannello Kairos usa i clienti (attivazione, playlist, profili…) e i download.
 
 Numerazione: correzioni sulla terza cifra (1.0.1, 1.0.2…), cambiamenti grossi sulla versione maggiore (2.0.0).
 
