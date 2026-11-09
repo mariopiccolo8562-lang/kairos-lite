@@ -7,12 +7,12 @@ fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
 val keystore = env("KS_PATH")?.let { file(it) }?.takeIf { it.exists() }
 // pannello Kairos (lo stesso di KAIROS TV); la variabile KAIROS_SERVER_URL del repository, se c'è, lo sostituisce
 val serverUrl = (env("KAIROS_SERVER_URL") ?: "https://kairos-panel.mariopiccolo8562.workers.dev").trimEnd('/').replace("\"", "")
-// download e aggiornamenti: un solo indirizzo (oggi il pannello), da cambiare quando arriva il dominio dedicato ai download;
-// l'app chiede <DL_BASE>/get/lite.json, poi panel-kairos.com (vedi UpdFeed.kt); la variabile KAIROS_DL_BASE, se c'è, lo sostituisce
-val dlBase = (env("KAIROS_DL_BASE") ?: "https://panel-kairos.com").trimEnd('/').replace("\"", "")
-// riserva degli aggiornamenti, solo se il pannello non risponde: kairos-lite.json dell'ultima release di questo repository
-// (Kairos Lite è separata da KAIROS TV); con il repository privato fallisce senza danni
-val updateFallback = "https://github.com/" + (env("GITHUB_REPOSITORY") ?: "mariopiccolo8562-lang/kairos-lite") + "/releases/latest/download/kairos-lite.json"
+// download e aggiornamenti: un solo indirizzo, il dominio dedicato ai download; l'app chiede <DL_BASE>/get/lite.json,
+// poi panel-kairos.com, poi GitHub (vedi UpdFeed.kt); la variabile KAIROS_DL_BASE del repository, se c'è, lo sostituisce
+val dlBase = (env("KAIROS_DL_BASE") ?: "https://store-k.download").trimEnd('/').replace("\"", "")
+// riserva, solo se dominio dei download e pannello non rispondono: kairos-lite.json e kairos-lite.apk dell'ultima release di
+// questo repository (Kairos Lite è separata da KAIROS TV); con il repository privato fallisce senza danni
+val ghLatest = "https://github.com/" + (env("GITHUB_REPOSITORY") ?: "mariopiccolo8562-lang/kairos-lite") + "/releases/latest/download/"
 
 android {
     namespace = "com.kairos.lite"
@@ -29,7 +29,8 @@ android {
         resValue("string", "app_name", env("LITE_APP_NAME") ?: "Kairos Lite")
         buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")
         buildConfigField("String", "DL_BASE", "\"$dlBase\"")
-        buildConfigField("String", "UPDATE_URL_FALLBACK", "\"$updateFallback\"")
+        buildConfigField("String", "UPDATE_URL_FALLBACK", "\"${ghLatest}kairos-lite.json\"")
+        buildConfigField("String", "APK_URL_FALLBACK", "\"${ghLatest}kairos-lite.apk\"")
         // Fire TV / Android TV / telefoni sono ARM: niente x86, APK più piccolo
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
         // testi dell'app solo in italiano (scritti nel codice): le traduzioni delle librerie in decine di lingue
