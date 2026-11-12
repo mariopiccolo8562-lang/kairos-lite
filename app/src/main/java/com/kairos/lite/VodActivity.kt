@@ -203,6 +203,9 @@ class VodActivity : BaseActivity() {
             h.itemView.setOnKeyListener { _, code, e ->
                 if (code == KeyEvent.KEYCODE_MENU && e.action == KeyEvent.ACTION_UP) { toggleFav(h.bindingAdapterPosition); true } else false
             }
+            // titolo lungo: sul film dove sei scorre per intero (prima restava tagliato con «…»)
+            val focusBefore = h.itemView.onFocusChangeListener
+            h.itemView.setOnFocusChangeListener { v, has -> h.title.isSelected = has; focusBefore?.onFocusChange(v, has) }
             Ui.zoom(h.itemView, 1.06f)
             return h
         }
