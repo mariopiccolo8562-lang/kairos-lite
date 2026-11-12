@@ -27,8 +27,16 @@ import java.util.concurrent.Executors
  * niente anteprima video nella lista canali, immagini a 16 bit e buffer più piccoli.
  */
 class App : Application() {
+    /** processo a parte del trailer (TrailerActivity): solo la pagina del video, niente archivio, pannello o immagini */
+    private var trailerProcess = false
+    private fun processName(): String =
+        if (android.os.Build.VERSION.SDK_INT >= 28) android.app.Application.getProcessName()
+        else try { java.io.File("/proc/self/cmdline").readText().substringBefore('\u0000').ifBlank { packageName } } catch (_: Exception) { packageName }
+
     override fun onCreate() {
         super.onCreate()
+        trailerProcess = processName().endsWith(":trailer")
+        if (trailerProcess) return
         I = this
         Store.init(this)
         Db.init(this)
@@ -69,6 +77,9 @@ class App : Application() {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
+        if (trailerProcess) return
+        // sistema a corto di memoria mentre l'app è in uso: i lavori pesanti in sottofondo (guida XMLTV) aspettano
+        if (level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW || level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL || level >= android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE) memTightFor(3 * 60_000L)
         // memoria che scarseggia (o app in sfondo): via tutta la cache delle immagini in memoria, poi si rilegge dal disco
         if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
             Ui.clearMemory()
@@ -79,6 +90,8 @@ class App : Application() {
 
     override fun onLowMemory() {
         super.onLowMemory()
+        if (trailerProcess) return
+        memTightFor(5 * 60_000L)
         Ui.clearMemory()
     }
 
@@ -100,6 +113,12 @@ class App : Application() {
 
     companion object {
         lateinit var I: App
+        /** il lettore è la schermata in primo piano (usato dalla guida XMLTV: mai durante la visione) */
+        fun isPlayer(a: Activity?): Boolean = a is PlayerActivity
+        /** poca memoria segnalata dal sistema negli ultimi minuti */
+        @Volatile private var memTightUntil = 0L
+        val memTight: Boolean get() = android.os.SystemClock.elapsedRealtime() < memTightUntil
+        fun memTightFor(ms: Long) { memTightUntil = android.os.SystemClock.elapsedRealtime() + ms }
         @Volatile var lite = false
         /** «Leggerissima»: per le chiavette più vecchie (liste senza loghi, immagini più piccole, canali in HD) */
         @Volatile var max = false

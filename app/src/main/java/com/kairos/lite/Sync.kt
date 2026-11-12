@@ -62,7 +62,8 @@ object Sync {
         exec.execute {
             checking.set(false)
             val go = !running && (try { needed() } catch (_: Throwable) { false })
-            if (go) begin(pls, here = true)
+            // liste a posto: si controlla solo se la guida XMLTV è da rileggere (ogni 8 ore)
+            if (go) begin(pls, here = true) else if (!running) Epg.schedule(pls)
         }
     }
 
@@ -136,6 +137,7 @@ object Sync {
                 Store.syncSig = sig(pls)
                 Store.syncAt = System.currentTimeMillis()
                 failAt = 0L
+                Epg.syncCompleted(pls) // liste nuove: la guida XMLTV si rilegge in sottofondo (parte quando il caricamento è finito)
             } else failAt = System.currentTimeMillis()
             error = errors.joinToString(" · ")
         } catch (t: Throwable) {

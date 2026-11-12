@@ -99,6 +99,23 @@ class SettingsActivity : BaseActivity() {
         }
         wasRunning = Sync.running
         syncSub = row(R.drawable.ic_refresh, "Aggiorna liste", syncText(), "") { Sync.force(); build() }
+        // guida XMLTV in più, messa dal cliente (se il fornitore lo permette): riempie i canali che la guida del server non copre
+        if ((Panel.state ?: Panel.loadCached())?.perm("epgUrl") != false) {
+            row(R.drawable.ic_tv, "Guida XMLTV esterna", "Un indirizzo XMLTV in più per i canali senza guida", if (Store.externalEpgUrl.isBlank()) "Non impostata" else "Configurata") {
+                Ui.input(this, "Guida XMLTV esterna", "Indirizzo http:// o https:// (vuoto = nessuna)", false, Store.externalEpgUrl) { value ->
+                    val url = value.trim()
+                    if (url.isNotEmpty() && !url.startsWith("http://", true) && !url.startsWith("https://", true)) {
+                        Ui.toast("Inserisci un indirizzo http:// o https://")
+                    } else {
+                        Store.externalEpgUrl = url
+                        Store.clearEpgBuild()
+                        Epg.syncCompleted(K.active())
+                        Ui.toast(if (url.isEmpty()) "Guida esterna tolta" else "Guida esterna salvata: si carica in sottofondo")
+                        build()
+                    }
+                }
+            }
+        }
         val prevVal = if (Store.preview == "off") "Spenta" else "Al primo OK" + (if (Remote.imposed("preview")) " · fornitore" else "")
         row(R.drawable.ic_tv, "Anteprima nella lista canali", "OK una volta: il canale parte nel riquadro · OK di nuovo: schermo intero", prevVal) { if (Remote.imposed("preview")) Ui.toast("Impostazione scelta dal tuo fornitore") else choosePreview() }
         // bloccata anche senza il permesso «lite» del cliente: la decide il fornitore (quella imposta, altrimenti automatica)
