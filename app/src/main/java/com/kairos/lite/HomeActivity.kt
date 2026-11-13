@@ -68,6 +68,7 @@ class HomeActivity : BaseActivity() {
         Sync.start()
         showSync()
         messages()
+        loadArt()
     }
 
     override fun onPause() {
@@ -99,6 +100,93 @@ class HomeActivity : BaseActivity() {
         findViewById<TextView>(R.id.accName).text = name
         findViewById<TextView>(R.id.accExp).text = if (s.expires.isEmpty()) "Abbonamento attivo" else "Attivo fino al " + Ui.date(s.expires)
         findViewById<TextView>(R.id.brand).text = s.setting("brand").ifEmpty { "Kairos" }
+    }
+
+    /* ---------------- locandine nelle tessere (13 novembre 2026) ---------------- */
+    // Film e Serie: i titoli di tendenza della settimana che la linea ha davvero (classifica del pannello), altrimenti le
+    // ultime arrivate; TV in diretta: l'ultimo canale e il programma in onda. Spente con «Leggerissima» e dal pannello.
+    private var artReq = 0
+    private val posterIds = mapOf(
+        R.id.filmPosters to listOf(R.id.filmP1, R.id.filmP2, R.id.filmP3),
+        R.id.seriesPosters to listOf(R.id.seriesP1, R.id.seriesP2, R.id.seriesP3),
+    )
+
+    private fun loadArt() {
+        val trendFilm = findViewById<TextView>(R.id.trendFilm)
+        val trendSeries = findViewById<TextView>(R.id.trendSeries)
+        val liveNow = findViewById<TextView>(R.id.liveNow)
+        if (App.max || !Remote.homeArt) {
+            artReq++
+            for ((_, ids) in posterIds) ids.forEach { val v = findViewById<ImageView>(it); Ui.unload(v); v.visibility = View.GONE }
+            listOf(trendFilm, trendSeries, liveNow).forEach { it.visibility = View.GONE }
+            return
+        }
+        val pls = K.activeIds()
+        val kids = K.kids
+        val lastId = Store.lastLiveId
+        val token = ++artReq
+        bg {
+            val trend = Trend.get()
+            val tf = trend?.let { Db.posters("vod", it.movies, pls, kids, 3) }.orEmpty()
+            val ts = trend?.let { Db.posters("series", it.series, pls, kids, 3) }.orEmpty()
+            val films = if (tf.size >= 3) tf else Db.newestPosters("vod", pls, kids, 3)
+            val series = if (ts.size >= 3) ts else Db.newestPosters("series", pls, kids, 3)
+            val row = if (lastId > 0) Db.one("live", lastId) else null
+            val prog = row?.let { try { Epg.now(K.pl(it.s("pl")), it.s("sid"), it.s("epg"), it.s("name")) } catch (_: Exception) { null } }
+            ui {
+                if (token != artReq || isFinishing) return@ui
+                setPosters(R.id.filmPosters, films, 0)
+                setPosters(R.id.seriesPosters, series, 0)
+                line(trendFilm, films.firstOrNull()?.let { (if (tf.size >= 3) "Di tendenza: " else "Novità: ") + it.name })
+                line(trendSeries, series.firstOrNull()?.let { (if (ts.size >= 3) "Di tendenza: " else "Novità: ") + it.name })
+                line(liveNow, row?.let { r ->
+                    val title = prog?.title.orEmpty()
+                    "Ultimo: " + r.s("name") + if (title.isNotBlank()) " · ora $title" else ""
+                })
+            }
+        }
+    }
+
+    private fun line(view: TextView, text: String?) {
+        view.text = text.orEmpty()
+        view.visibility = if (text.isNullOrBlank()) View.GONE else View.VISIBLE
+    }
+
+    /** tre locandine in fila (100 %, 82 %, 66 %), alte quanto la tessera lascia; [tries]: la tessera non è ancora misurata */
+    private fun setPosters(rowId: Int, items: List<Db.Poster>, tries: Int) {
+        val row = findViewById<View>(rowId)
+        val ids = posterIds[rowId] ?: return
+        val h = row.height - row.paddingTop - row.paddingBottom
+        if (h <= 0 || row.width <= 0) {
+            if (tries < 5) row.postDelayed({ if (!isFinishing) setPosters(rowId, items, tries + 1) }, 120)
+            return
+        }
+        val gap = Ui.dp(this, 6)
+        val byWidth = ((row.width - 2 * gap) / (2f / 3f * 2.48f)).toInt()
+        val tallest = minOf(h, byWidth, Ui.dp(this, 160))
+        val shares = floatArrayOf(1f, 0.82f, 0.66f)
+        ids.forEachIndexed { i, id ->
+            val v = findViewById<ImageView>(id)
+            val item = items.getOrNull(i)
+            if (item == null || tallest < Ui.dp(this, 44)) {
+                Ui.unload(v)
+                v.visibility = View.GONE
+                return@forEachIndexed
+            }
+            val ph = (tallest * shares[i]).toInt()
+            val pw = ph * 2 / 3
+            val lp = v.layoutParams
+            if (lp.width != pw || lp.height != ph) { lp.width = pw; lp.height = ph; v.layoutParams = lp }
+            if (v.background == null) {
+                v.background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = Ui.dp(this@HomeActivity, 8).toFloat()
+                    setColor(0x33000000)
+                }
+                v.clipToOutline = true
+            }
+            v.visibility = View.VISIBLE
+            Ui.img(v, item.img, pw, ph)
+        }
     }
 
     private fun counts() {

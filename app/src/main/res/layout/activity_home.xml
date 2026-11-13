@@ -183,6 +183,17 @@
                 android:textColor="@color/on_focus_muted"
                 android:textSize="@dimen/tile_sub"
                 android:textStyle="bold" />
+            <TextView
+                android:id="@+id/liveNow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:duplicateParentState="true"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="@color/on_focus_muted"
+                android:textSize="@dimen/tile_sub"
+                android:visibility="gone" />
         </LinearLayout>
         <LinearLayout
             android:id="@+id/tileFilm"
@@ -200,7 +211,19 @@
                 android:duplicateParentState="true"
                 android:src="@drawable/ic_film"
                 android:tint="@color/on_focus_icon" />
-            <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+            <!-- locandine dei titoli di tendenza che la linea ha (13 novembre 2026); misure in HomeActivity.sizePosters -->
+            <LinearLayout
+                android:id="@+id/filmPosters"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="right|bottom"
+                android:orientation="horizontal"
+                android:paddingBottom="8dp">
+                <ImageView android:id="@+id/filmP3" android:layout_width="0dp" android:layout_height="0dp" android:alpha="0.6" android:contentDescription="" android:scaleType="centerCrop" />
+                <ImageView android:id="@+id/filmP2" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginLeft="6dp" android:alpha="0.8" android:contentDescription="" android:scaleType="centerCrop" />
+                <ImageView android:id="@+id/filmP1" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginLeft="6dp" android:contentDescription="" android:scaleType="centerCrop" />
+            </LinearLayout>
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -218,6 +241,17 @@
                 android:singleLine="true"
                 android:textColor="@color/on_focus_muted"
                 android:textSize="@dimen/tile_sub" />
+            <TextView
+                android:id="@+id/trendFilm"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:duplicateParentState="true"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="@color/on_focus_muted"
+                android:textSize="@dimen/tile_sub"
+                android:visibility="gone" />
         </LinearLayout>
         <LinearLayout
             android:id="@+id/tileSeries"
@@ -235,7 +269,19 @@
                 android:duplicateParentState="true"
                 android:src="@drawable/ic_series"
                 android:tint="@color/on_focus_icon" />
-            <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+            <!-- locandine dei titoli di tendenza che la linea ha (13 novembre 2026); misure in HomeActivity.sizePosters -->
+            <LinearLayout
+                android:id="@+id/seriesPosters"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="right|bottom"
+                android:orientation="horizontal"
+                android:paddingBottom="8dp">
+                <ImageView android:id="@+id/seriesP3" android:layout_width="0dp" android:layout_height="0dp" android:alpha="0.6" android:contentDescription="" android:scaleType="centerCrop" />
+                <ImageView android:id="@+id/seriesP2" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginLeft="6dp" android:alpha="0.8" android:contentDescription="" android:scaleType="centerCrop" />
+                <ImageView android:id="@+id/seriesP1" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginLeft="6dp" android:contentDescription="" android:scaleType="centerCrop" />
+            </LinearLayout>
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -253,6 +299,17 @@
                 android:singleLine="true"
                 android:textColor="@color/on_focus_muted"
                 android:textSize="@dimen/tile_sub" />
+            <TextView
+                android:id="@+id/trendSeries"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:duplicateParentState="true"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="@color/on_focus_muted"
+                android:textSize="@dimen/tile_sub"
+                android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 

@@ -261,6 +261,47 @@ object Db {
      * nome della categoria di alcuni titoli di [table] (vod / series), per chiave k: serve a «Continua a guardare» nella Home
      * senza adulti. Una sola lettura con gli indici; se non riesce restano i soli nomi dei titoli.
      */
+    /** locandina di un titolo: nome e immagine */
+    class Poster(val name: String, val img: String)
+
+    /**
+     * locandine per le tessere della Home (13 novembre 2026): i titoli di una classifica [titles] (titolo, anno) che la linea
+     * ha davvero, nell'ordine della classifica; vedi [Trend]
+     */
+    fun posters(table: String, titles: List<Pair<String, Int?>>, pls: List<String>, kids: Boolean, limit: Int): List<Poster> {
+        if (table != "vod" && table != "series" || pls.isEmpty() || limit <= 0) return emptyList()
+        val out = ArrayList<Poster>()
+        val seen = HashSet<String>()
+        for ((title, year) in titles) {
+            if (out.size >= limit || title.isBlank()) break
+            val q = base(pls, kids)
+            q.where += " AND name LIKE ? ESCAPE '\\' AND img LIKE 'http%'"
+            q.args.add("%" + title.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
+            r.rawQuery("SELECT k, name, img, year FROM $table WHERE ${q.where} ORDER BY added DESC, _id LIMIT 8", q.args.toTypedArray()).use { c ->
+                while (c.moveToNext()) {
+                    val k = c.getString(0) ?: continue
+                    val name = c.getString(1) ?: ""
+                    if (TitleMatch.matches(name, c.getString(3)?.toIntOrNull(), title, year) && seen.add(k)) {
+                        out.add(Poster(name, c.getString(2) ?: ""))
+                        break
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    /** le ultime arrivate con l'immagine, quando la classifica non c'è o la linea ne ha pochi titoli */
+    fun newestPosters(table: String, pls: List<String>, kids: Boolean, limit: Int): List<Poster> {
+        if (table != "vod" && table != "series" || pls.isEmpty() || limit <= 0) return emptyList()
+        val q = base(pls, kids)
+        return r.rawQuery("SELECT name, img FROM $table WHERE ${q.where} AND img LIKE 'http%' ORDER BY added DESC, _id LIMIT $limit", q.args.toTypedArray()).use { c ->
+            val out = ArrayList<Poster>()
+            while (c.moveToNext()) out.add(Poster(c.getString(0) ?: "", c.getString(1) ?: ""))
+            out
+        }
+    }
+
     fun catNames(table: String, keys: Collection<String>): Map<String, String> {
         val list = keys.filter { it.isNotEmpty() }.distinct().take(200)
         if (list.isEmpty()) return emptyMap()
