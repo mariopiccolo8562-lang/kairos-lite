@@ -119,6 +119,7 @@ class HomeActivity : BaseActivity() {
             artReq++
             for ((_, ids) in posterIds) ids.forEach { val v = findViewById<ImageView>(it); Ui.unload(v); v.visibility = View.GONE }
             listOf(trendFilm, trendSeries, liveNow).forEach { it.visibility = View.GONE }
+            findViewById<ImageView>(R.id.liveLogo).let { Ui.unload(it); it.visibility = View.GONE }
             return
         }
         val pls = K.activeIds()
@@ -139,6 +140,13 @@ class HomeActivity : BaseActivity() {
                 setPosters(R.id.seriesPosters, series, 0)
                 line(trendFilm, films.firstOrNull()?.let { (if (tf.size >= 3) "Di tendenza: " else "Novità: ") + it.name })
                 line(trendSeries, series.firstOrNull()?.let { (if (ts.size >= 3) "Di tendenza: " else "Novità: ") + it.name })
+                findViewById<ImageView>(R.id.liveLogo).let { v ->
+                    val logo = row?.s("logo").orEmpty()
+                    if (logo.startsWith("http")) {
+                        v.visibility = View.VISIBLE
+                        v.post { if (!isFinishing && v.height > 0) Ui.img(v, logo, minOf(v.width, Ui.dp(this, 240)), minOf(v.height, Ui.dp(this, 140))) }
+                    } else { Ui.unload(v); v.visibility = View.GONE }
+                }
                 line(liveNow, row?.let { r ->
                     val title = prog?.title.orEmpty()
                     "Ultimo: " + r.s("name") + if (title.isNotBlank()) " · ora $title" else ""
